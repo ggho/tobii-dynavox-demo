@@ -1,0 +1,14 @@
+{
+  "name": "eyex-web-games",
+  "description": "Eyetracking web games that run on EyeX",
+  "version": "0.0.1",
+  "homepage": "https://github.com/angular/angular-seed",
+  "license": "",
+  "private": true,
+  "dependencies": {
+    "angular": "~1.4.0",
+    "angular-route": "~1.4.0",
+		"jquery": "~2.1.1",
+    "bootstrap": "~3.1.1"
+  }
+}
