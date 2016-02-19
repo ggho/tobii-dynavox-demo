@@ -1,0 +1,7 @@
+diff a/.gitignore b/.gitignore	(rejected hunks)
+@@ -1,4 +1,5 @@
+ DemoWpf/DemoWpf/bin/
+ DemoWpf/EyeXFramework/bin/
+ DemoWpf/EyeXFramework/obj/
++DemoWpf/DemoWpf/obj/x86/Debug/UserPresenceWpf.Properties.Resources.resources
+ DemoWpf/DemoWpf/obj/
