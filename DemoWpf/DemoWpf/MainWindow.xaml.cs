@@ -35,22 +35,49 @@ namespace UserPresenceWpf
         {
             InitializeComponent();
 
-            //webControl.Source = new Uri(new FileInfo(@"html/sensory-game/sensory-game.html").FullName);
-            //webControl.Source = new Uri(new FileInfo(@"Tobii.EyeX.Web/samples/Demos/JSDemo2.html").FullName);
+            DataContextChanged += OnDataContextChanged;
+            Loaded += OnLoaded;
 
-            //// porting web console to native console
-            //webControl.ConsoleMessage += (sender1, args) => Console.Out.WriteLine("[JS]{1}:{2} {0}", args.Message, args.Source, args.LineNumber);
-            //webControl.ShowContextMenu += (sender1, args) => args.Handled = true;
+            //ActivateApp("iexplore");
 
-            ActivateApp("iexplore");
+            
+
         }
 
-        protected override void OnActivated(EventArgs e)
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             ((MainWindowModel)DataContext).PropertyChanged += OnPropertyChanged;
         }
 
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            WebControl.Source = new Uri(new FileInfo(@"html/index.html").FullName);
+            //webControl.Source = new Uri(new FileInfo(@"Tobii.EyeX.Web/samples/Demos/JSDemo2.html").FullName);
 
+            //// porting web console to native console
+            WebControl.ConsoleMessage += (sender1, args) => Console.Out.WriteLine("[JS]{1}:{2} {0}", args.Message, args.Source, args.LineNumber);
+            WebControl.ShowContextMenu += (sender1, args) => args.Handled = true;
+
+
+            //WebControl.DocumentReady += (sender1, arg) => WebControl.ExecuteJavascript(string.Format("alert('Gigi says hi');"));
+
+            
+            using (JSObject webApp = WebControl.CreateGlobalJavascriptObject("native")) //create under window object, i.e. window.native
+            {
+
+                webApp.BindAsync("TestFunc", (sender1, args) =>
+                {
+                    //TechFunc callback
+                    Console.Out.WriteLine((string)args.Arguments[0]);
+
+                    WebControl.ExecuteJavascript(string.Format("alert({0});", "Gigi is calling"));
+
+
+                    //Execute.OnUIThreadAsync(() => _web.ExecuteJavascript(string.Format("mymethod({0});", 60)));
+                });
+            }
+
+        }
 
         private void OnPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -65,8 +92,17 @@ namespace UserPresenceWpf
                 model.CancelDelayedTask();
 
                 Console.WriteLine("After: Eyetracking mode:" + model.EyeXHost.EyeTrackingDeviceStatus);
+            }
+            else if (e.PropertyName == "FixationPoint")
+            {
+                //Point fixationPoint = model.CurFixationPoint;
+                Point clientCorrdinate = WebControl.PointFromScreen(model.FixationPoint);
 
-                //ActivateApp("iexplore");
+                //forward point to wecControl
+                if(WebControl.IsDocumentReady){
+                    WebControl.ExecuteJavascript(string.Format("GlobalFunc({0}, {1});", clientCorrdinate.X, clientCorrdinate.Y));
+                }
+
             }
         }
 

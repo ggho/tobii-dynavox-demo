@@ -14,15 +14,15 @@ Configs.colorSets = {
 var App = {};
 App.settings = {
 	colorSet: 1,
-	faceStyle: 'none', //none, face, xmas
+	faceStyle: 'face', //none, face, xmas
 	length: 'medium' //numOfObjects = 30,50, 80
 };
 
 //temp for debug:
 var game; 
+var GlobalFunc;
 
 angular.module('myApp.gameCaterpillar', [])
-
 .controller('gameCaterpillarCtrl', ['$scope', function($scope){
 	$scope._init = function(){
 		$scope.game= new Game();
@@ -36,42 +36,58 @@ angular.module('myApp.gameCaterpillar', [])
 			$scope.game.setMouse(e.clientX, e.clientY);
 	});
 
+	// From native app
+	GlobalFunc = function(x,y){
+	
+			$scope.game.setMouse(x, y);
+};
+
 	// EyeX
 	EyeX.ready(function (context) {
-		EyeX.coords.setConverter(new EyeX.WebCoordinatesConverter());
+		//EyeX.coords.setConverter(new EyeX.WebCoordinatesConverter());
+		
+		var webManager = new EyeX.WebManager(context);
 
-		//EyeX 
+		//subscribe to brwoser changed event
 		EyeX.coords.clientChanged.subscribe(EyeX.utils.proxy($scope.game.gameCanvas, $scope.game.gameCanvas.updateDimension));
 
-		var webManager = new EyeX.WebManager(context);
 
 		var canvasElement = document.getElementById("game-canvas");
 		var canvasSelector = $(canvasElement);
 
 		EyeX.streams.fixationData (function (gazePoint) {
-        	// console.log(gazePoint.x + ', ' + gazePoint.y)
+        	console.log(gazePoint.x + ', ' + gazePoint.y)
+        	
+			//temp way to handle: Stop running when brwoser isn't active
+			if(!window.document.hasFocus())
+				return;
 
-        	var canvasOffset = canvasSelector.offset();
-        	var gazePointOnPage = EyeX.coords.screenToClient(gazePoint);
-        	var x = gazePointOnPage.x - canvasOffset.left;
-        	var y = gazePointOnPage.y - canvasOffset.top;
+			var canvasOffset = canvasSelector.offset();
+			var gazePointOnPage = EyeX.coords.screenToClient(gazePoint);
+			var x = gazePointOnPage.x - canvasOffset.left;
+			var y = gazePointOnPage.y - canvasOffset.top;
 
 
-        	$scope.game.setMouse(x, y);
+			$scope.game.setMouse(x, y);
 
-        });
+		});
+
+		EyeX.states.subscribe(this, function(statedata){
+			console.log("gigi:");
+			console.log(statedata);
+		})
 	});
 
 
 
-	var Game = function() {
-		this.lastMouseX = -1;
-		this.lastMouseY = -1;
-		this.lastMouseTs = 0;
+var Game = function() {
+	this.lastMouseX = -1;
+	this.lastMouseY = -1;
+	this.lastMouseTs = 0;
 
-		this.mouseX = -1;
-		this.mouseY = -1;
-		this.mouseTs = 0;
+	this.mouseX = -1;
+	this.mouseY = -1;
+	this.mouseTs = 0;
 
 		this.gameOn = false; //first on trigger by mouse move
 		this.gameLoop;
@@ -84,6 +100,7 @@ angular.module('myApp.gameCaterpillar', [])
 		// this.creatureLine = new CreatureLine(5);
 		this.gameCanvas = new GameCanvas($('#game-canvas'));
 
+		//TODO: fix hardcoding first audio, but whatever the brwoser support!!
 		this.music = this.gameCanvas.siblings('audio').get(0);
 		this.music.volume = 0.1; //start with low
 
@@ -148,10 +165,12 @@ angular.module('myApp.gameCaterpillar', [])
 
 	Game.prototype.runAnimation = function() {
 		that.gameCanvas.draw(); //  drawing code
-		that.animationLoop = requestAnimationFrame(that.runAnimation);
 
-		//porting for awesomium
-		//that.animationLoop = setTimeout(that.runAnimation, 1000 / 30);
+		if(typeof requestAnimationFrame != "undefined")
+			that.animationLoop = requestAnimationFrame(that.runAnimation);
+		//For browsers that doesn't support requestAnimationFrame, e.g. awesomium
+		else
+			that.animationLoop = setTimeout(that.runAnimation, 1000 / 30);
 //		console.log(that.aniatmionLoop);
 
 };
@@ -170,8 +189,10 @@ Game.prototype.runGame = function() {
 		}
 
 		if (this.animationLoop) {
-			cancelAnimationFrame(this.animationLoop);
-			// clearTimeout(this.animationLoop);
+			if(typeof requestAnimationFrame != "undefined")
+				cancelAnimationFrame(this.animationLoop);
+			else
+				clearTimeout(this.animationLoop);
 			this.animationLoop = undefined;
 		}
 
@@ -258,8 +279,8 @@ var GameCanvas = function(jqObj) {
 					if (!canvasObj) {
 					}
 
-				canvasObj.moveTowards(targetX, targetY);
-			}, timeDelay, obj);
+					canvasObj.moveTowards(targetX, targetY);
+				}, timeDelay, obj);
 
 			}
 		}

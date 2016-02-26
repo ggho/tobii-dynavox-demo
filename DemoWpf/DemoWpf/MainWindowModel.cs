@@ -34,6 +34,8 @@ namespace UserPresenceWpf
         private AsyncData _calibrationAsyncData;
         private bool _isCalibrating;
 
+        private Point _fixationPoint; 
+
 
         public MainWindowModel()
         {
@@ -56,8 +58,11 @@ namespace UserPresenceWpf
             // NOTE that the event listener must be unregistered too. This is taken care of in the Dispose(bool) method.
             _eyeXHost.UserPresenceChanged += EyeXHost_UserPresenceChanged;
             _eyeXHost.GazeTrackingChanged += EyeXHost_GazeTrackingChanged;
-
             _eyeXHost.EyeTrackingDeviceStatusChanged += EyeXHost_EyeTrackingDeviceStatusChanged;
+
+            // streams
+            _eyeXHost.CreateFixationDataStream(FixationDataMode.Slow).Next += EyeXHost_FixationDataStream;
+                   
 
             // Start the EyeX host.
             _eyeXHost.Start();
@@ -129,7 +134,6 @@ namespace UserPresenceWpf
 
                 OnPropertyChanged("IsUserDelayedPresent");
             }
-
         }
 
         public void CancelDelayedTask()
@@ -178,6 +182,16 @@ namespace UserPresenceWpf
             get { return !IsTrackingGazeSupported; }
         }
 
+        public Point FixationPoint
+        {
+            get { return _fixationPoint; }
+            set
+            {
+                _fixationPoint = value;
+                OnPropertyChanged("FixationPoint");
+            }
+        }
+
         /// <summary>
         /// Cleans up any resources being used.
         /// </summary>
@@ -187,6 +201,7 @@ namespace UserPresenceWpf
             _eyeXHost.GazeTrackingChanged -= EyeXHost_GazeTrackingChanged;
 
             _eyeXHost.EyeTrackingDeviceStatusChanged -= EyeXHost_EyeTrackingDeviceStatusChanged;
+            
             _eyeXHost.Dispose();
 
             _delayedTaskTokenSource.Dispose();
@@ -267,6 +282,16 @@ namespace UserPresenceWpf
                 _isCalibrating = false;
                 //Console.WriteLine(_calibrationAsyncData);
             }
+        }
+        
+        
+        private void EyeXHost_FixationDataStream(object sender, FixationEventArgs args)
+        {
+            Point fixationPoint = new Point(args.X, args.Y);
+            RunOnMainThread(() =>
+            {
+                FixationPoint = fixationPoint;
+            });
         }
 
         private void OnPropertyChanged(string name)
