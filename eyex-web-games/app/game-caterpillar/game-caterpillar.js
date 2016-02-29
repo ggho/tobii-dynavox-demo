@@ -19,16 +19,16 @@ App.settings = {
 };
 
 //temp for debug:
-var game; 
+//var game; 
 var GlobalFunc;
 
-angular.module('myApp.gameCaterpillar', [])
-.controller('gameCaterpillarCtrl', ['$scope', function($scope){
-	$scope._init = function(){
-		$scope.game= new Game();
-		game = $scope.game;
-	};
+var $scope = {};
 
+
+$(document).ready(function(){
+	
+	$scope.game= new Game();
+	
 
 	// Events handler
 	$(window).mousemove(function(e) {
@@ -36,48 +36,20 @@ angular.module('myApp.gameCaterpillar', [])
 			$scope.game.setMouse(e.clientX, e.clientY);
 	});
 
+
+	window.onresize = function(){
+		if ($scope.game)
+			$scope.game.gameCanvas.updateDimension();
+	};
+
+
 	// From native app
 	GlobalFunc = function(x,y){
-	
-			$scope.game.setMouse(x, y);
-};
 
-	// EyeX
-	EyeX.ready(function (context) {
-		//EyeX.coords.setConverter(new EyeX.WebCoordinatesConverter());
-		
-		var webManager = new EyeX.WebManager(context);
+		$scope.game.setMouse(x, y);
+	};
 
-		//subscribe to brwoser changed event
-		EyeX.coords.clientChanged.subscribe(EyeX.utils.proxy($scope.game.gameCanvas, $scope.game.gameCanvas.updateDimension));
-
-
-		var canvasElement = document.getElementById("game-canvas");
-		var canvasSelector = $(canvasElement);
-
-		EyeX.streams.fixationData (function (gazePoint) {
-        	console.log(gazePoint.x + ', ' + gazePoint.y)
-        	
-			//temp way to handle: Stop running when brwoser isn't active
-			if(!window.document.hasFocus())
-				return;
-
-			var canvasOffset = canvasSelector.offset();
-			var gazePointOnPage = EyeX.coords.screenToClient(gazePoint);
-			var x = gazePointOnPage.x - canvasOffset.left;
-			var y = gazePointOnPage.y - canvasOffset.top;
-
-
-			$scope.game.setMouse(x, y);
-
-		});
-
-		EyeX.states.subscribe(this, function(statedata){
-			console.log("gigi:");
-			console.log(statedata);
-		})
-	});
-
+});
 
 
 var Game = function() {
@@ -89,14 +61,14 @@ var Game = function() {
 	this.mouseY = -1;
 	this.mouseTs = 0;
 
-		this.gameOn = false; //first on trigger by mouse move
-		this.gameLoop;
-		this.animationLoop;
-		this.gameCanvas;
+	this.gameOn = false; //first on trigger by mouse move
+	this.gameLoop;
+	this.animationLoop;
+	this.gameCanvas;
 
-		var that = this;
+	var that = this;
 
-		Game.prototype._init = function() {
+	Game.prototype._init = function() {
 		// this.creatureLine = new CreatureLine(5);
 		this.gameCanvas = new GameCanvas($('#game-canvas'));
 
@@ -171,11 +143,11 @@ var Game = function() {
 		//For browsers that doesn't support requestAnimationFrame, e.g. awesomium
 		else
 			that.animationLoop = setTimeout(that.runAnimation, 1000 / 30);
-//		console.log(that.aniatmionLoop);
+		//		console.log(that.aniatmionLoop);
 
-};
+	};
 
-Game.prototype.runGame = function() {
+	Game.prototype.runGame = function() {
 		that.gameCanvas.step(1000 / 60); //  simulation code
 		that.gameLoop = setTimeout(that.runGame, 1000 / 60);
 	};
@@ -458,6 +430,3 @@ var CanvasObject = function(x, y, colorSet, faceStyle) {
 };
 
 
-$scope._init();
-
-}]);

@@ -59,7 +59,7 @@
             <!--Source="http://127.0.0.1:8080/#/" />-->
                         
         <!--<Image Grid.Row="1" Source="{Binding ImageSource}" />-->
-        <Label Grid.Row="2" Content="Try playing peek-a-boo with this guy and see what happens..."/>
+        <!--<Label Grid.Row="2" Content="Try playing peek-a-boo with this guy and see what happens..."/>-->
 
     </Grid>
 </Window>

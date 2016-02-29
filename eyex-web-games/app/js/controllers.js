@@ -3,4 +3,4 @@
  * and open the template in the editor.
  */
 
-var eyexGamesControllers = angular.module('eyexGamesControllers', []);
+var webGamesControllers;
