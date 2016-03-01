@@ -1,7 +1,7 @@
 'use strict';
 
 var Configs = {};
-Configs.numOfObjects = 80;
+Configs.wormLength = 30;
 Configs.colorSets = {
 	1: ['#EE595D', '#F47211', '#FCC22C', '#EBC875', '#98C8EF', '#8172B5', '#83A97F', '#274297', '#B783BA'], //color pantone
 	2: ['#121418', '#1D450B', '#386324', '#4D8D30', '#70b64f', '#e2f9cd', '#d3e29d', '#E5E590', '#aa6c54'], //caterpillar green
@@ -15,19 +15,15 @@ var App = {};
 App.settings = {
 	colorSet: 1,
 	faceStyle: 'face', //none, face, xmas
-	length: 'medium' //numOfObjects = 30,50, 80
+	length: 'short' //wormLength = 30,50, 80
 };
 
 //temp for debug:
 //var game; 
-var GlobalFunc;
-
-var $scope = {};
 
 
 $(document).ready(function(){
 	
-	$scope.game= new Game();
 	
 
 	// Events handler
@@ -52,7 +48,7 @@ $(document).ready(function(){
 });
 
 
-var Game = function() {
+var Game = function(mode) {
 	this.lastMouseX = -1;
 	this.lastMouseY = -1;
 	this.lastMouseTs = 0;
@@ -61,6 +57,8 @@ var Game = function() {
 	this.mouseY = -1;
 	this.mouseTs = 0;
 
+
+	this.gameMode = mode ? mode : Game.MODE.EXPLORE;
 	this.gameOn = false; //first on trigger by mouse move
 	this.gameLoop;
 	this.animationLoop;
@@ -70,7 +68,7 @@ var Game = function() {
 
 	Game.prototype._init = function() {
 		// this.creatureLine = new CreatureLine(5);
-		this.gameCanvas = new GameCanvas($('#game-canvas'));
+		this.gameCanvas = new GameCanvas($('#game-canvas'), this.gameMode);
 
 		//TODO: fix hardcoding first audio, but whatever the brwoser support!!
 		this.music = this.gameCanvas.siblings('audio').get(0);
@@ -128,7 +126,7 @@ var Game = function() {
 
 	Game.prototype.run = function() {
 		//
-		this.gameCanvas.createObjects();
+		this.gameCanvas.createWorm();
 		this.startMusic();
 
 		this.runGame();
@@ -142,14 +140,14 @@ var Game = function() {
 			that.animationLoop = requestAnimationFrame(that.runAnimation);
 		//For browsers that doesn't support requestAnimationFrame, e.g. awesomium
 		else
-			that.animationLoop = setTimeout(that.runAnimation, 1000 / 30);
+			that.animationLoop = setTimeout(that.runAnimation, 1000 / 30); // 30 FPS 
 		//		console.log(that.aniatmionLoop);
 
 	};
 
 	Game.prototype.runGame = function() {
-		that.gameCanvas.step(1000 / 60); //  simulation code
-		that.gameLoop = setTimeout(that.runGame, 1000 / 60);
+		that.gameCanvas.step(Date.now()); //  simulation code
+		that.gameLoop = setTimeout(that.runGame, 1000 / 60); //freq= 1/60s; 60FPS
 	};
 
 
@@ -180,8 +178,13 @@ var Game = function() {
 
 };
 
+Game.MODE = {
+	EXPLORE : 'explore',
+	TARGET : 'target'
+};
 
-var GameCanvas = function(jqObj) {
+
+var GameCanvas = function(jqObj, gameMode) {
 	//constructor
 	$.extend(this, jqObj);
 
@@ -189,8 +192,17 @@ var GameCanvas = function(jqObj) {
 	this._context = this.get(0).getContext("2d");
 	this._context.clearRect(0, 0, this.width(), this.height());
 
+	this.gameMode = gameMode;
+	this.wormBodyParts = [];
+	this.foods = [];
+	this.lastFoodTs = 0;
 
-	this.canvasObjects = [];
+	if(this.gameMode === Game.MODE.TARGET){
+		this.wormLength = 3;
+	}else{
+		this.wormLength = Configs.wormLength;
+	}
+
 	var that = this;
 
 	GameCanvas.prototype._init = function() {
@@ -198,21 +210,24 @@ var GameCanvas = function(jqObj) {
 		//force set canvas width and height
 		this.updateDimension();
 		this.clearCanvas();
-
-
 	};
 
-	GameCanvas.prototype.createObjects = function() {
+	GameCanvas.prototype.createWorm = function() {
 		//put starting object
 		var faceStyle = 'none';
-		for (var i = 0; i < Configs.numOfObjects; i++) {
+		for (var i = 0; i < this.wormLength; i++) {
 
-			if ((i === Configs.numOfObjects - 1) && App.settings.faceStyle !== 'none')
+			if ((i === this.wormLength - 1) && App.settings.faceStyle !== 'none')
 				faceStyle = App.settings.faceStyle;
 
-			var newObj = new CanvasObject($scope.game.mouseX, $scope.game.mouseY, App.settings.colorSet, faceStyle);
-			this.canvasObjects.push(newObj);
+			var newObj = new BodyPart($scope.game.mouseX, $scope.game.mouseY, App.settings.colorSet, faceStyle);
+			this.wormBodyParts.push(newObj);
 		}
+	};
+
+	GameCanvas.prototype.createOneFood = function(){
+		var food = new Food(this._context);
+		this.foods.push(food);
 	};
 
 	GameCanvas.prototype.updateDimension = function() {
@@ -228,34 +243,68 @@ var GameCanvas = function(jqObj) {
 		this.clearCanvas();
 		var ctx = this._context;//$('#game-canvas').get(0).getContext("2d");//
 
+		//Draw Food
+		for(var i = 0; i < this.foods.length; i++){
+			this.foods[i].draw(ctx);
+		}
+
+		//Draw worm
 		//set music volume according to moving Count
 		var movingCount = 0;
-		for (var i = 0; i < this.canvasObjects.length; i++) {
-			this.canvasObjects[i].draw(ctx);
-			movingCount += this.canvasObjects[i].isMoving;
+		for (var i = 0; i < this.wormBodyParts.length; i++) {
+			this.wormBodyParts[i].draw(ctx);
+			movingCount += this.wormBodyParts[i].isMoving;
 		}
-		$scope.game.setMusicVolume(movingCount / Configs.numOfObjects);
+		$scope.game.setMusicVolume(movingCount / this.wormLength);
+
 	};
 
 	GameCanvas.prototype.step = function(time) {
 		//do sth, e.g. physics, logic etc
-		for (var i = (this.canvasObjects.length - 1); i >= 0; i--) {
-			var timeDelay = (this.canvasObjects.length - 1 - i) * 50;
 
-			var obj = that.canvasObjects[i];
+		//TODO: redo body animation to avoid set timeout?
+		//update worm location based on mouse
+		var lastIdx = this.wormBodyParts.length - 1;
+		for (var i = lastIdx; i >= 0; i--) {
+			var timeDelay = (lastIdx - i) * 50;
+
+			var part = that.wormBodyParts[i];
 			var targetX = $scope.game.mouseX;
 			var targetY = $scope.game.mouseY;
 
 			if(targetX && targetY){
-				setTimeout(function(canvasObj) {
-					if (!canvasObj) {
+				setTimeout(function(bodyPart) {
+					if (!bodyPart) {
 					}
 
-					canvasObj.moveTowards(targetX, targetY);
-				}, timeDelay, obj);
+					bodyPart.moveTowards(targetX, targetY);
 
+					//check collsion with head
+					if(bodyPart.faceStyle === 'face'){
+						for(var i=0; i<that.foods.length; i++){
+							if(that.foods[i].checkCollide(targetX, targetY,bodyPart.size)){
+
+								//remove food
+								that.foods.splice(i,1); //remove item at i
+
+								//worm grow
+							}
+						}
+					}
+
+				}, timeDelay, part);
 			}
 		}
+
+		//gen food every 5 s
+		if((time - this.lastFoodTs) > 5000){
+			this.createOneFood();
+			this.lastFoodTs = time;
+
+		} 
+
+		
+
 
 	};
 
@@ -264,7 +313,7 @@ var GameCanvas = function(jqObj) {
 };
 
 
-var CanvasObject = function(x, y, colorSet, faceStyle) {
+var BodyPart = function(x, y, colorSet, faceStyle) {
 	// this.oldX = x;
 	// this.oldY = y;
 	this.x = x;
@@ -297,18 +346,18 @@ var CanvasObject = function(x, y, colorSet, faceStyle) {
 
 	}
 
-	CanvasObject.prototype.setXY = function(newX, newY) {
+	BodyPart.prototype.setXY = function(newX, newY) {
 		this.x = newX;
 		this.y = newY;
 	};
 
 
-	CanvasObject.prototype.move = function() {
+	BodyPart.prototype.move = function() {
 		this.x += this.velocityX * DAMPING;
 		this.y += this.velocityY * DAMPING;
 	};
 
-	CanvasObject.prototype.attractTowards = function(x, y) {
+	BodyPart.prototype.attractTowards = function(x, y) {
 		var dx = x - this.x;
 		var dy = y - this.y;
 
@@ -340,12 +389,12 @@ var CanvasObject = function(x, y, colorSet, faceStyle) {
 
 	};
 
-	CanvasObject.prototype.moveTowards = function(targetX, targetY) {
+	BodyPart.prototype.moveTowards = function(targetX, targetY) {
 		this.move();
 		this.attractTowards(targetX, targetY);
 	};
 
-	CanvasObject.prototype.draw = function(ctx) {
+	BodyPart.prototype.draw = function(ctx) {
 		ctx.fillStyle = this.color;
 
 		if (this.faceStyle === 'none') {
@@ -429,4 +478,47 @@ var CanvasObject = function(x, y, colorSet, faceStyle) {
 	};
 };
 
+var Food = Class({
+	$const: {
+		TYPE: {
+			BEAN : 'bean'
 
+		}
+	},
+	constructor: function(ctx){
+		//random type of food
+		this.type = Food.TYPE.BEAN;
+
+		//random lcoation
+		this.x = Math.random()*ctx.canvas.width;
+		this.y = Math.random()*ctx.canvas.height;
+
+		this.size = 10;
+
+	},
+	draw: function(ctx){
+		
+
+		switch(this.type){
+			case Food.TYPE.BEAN:
+			ctx.fillStyle = "#F00"
+			ctx.beginPath();
+			ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
+			ctx.fill();
+
+			break;
+			default:
+
+		}
+
+	},
+	checkCollide: function(targetX, targetY, targetSize){
+		//check distance between target and food location, if < this.size, then collide
+		var distance = Math.sqrt(Math.pow((targetX - this.x),2) + Math.pow((targetY - this.y),2));
+		if(distance <= (this.size+targetSize)){
+			return true;
+		}
+
+		return false;
+	}
+});

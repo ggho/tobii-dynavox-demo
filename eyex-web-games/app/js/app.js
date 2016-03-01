@@ -8,7 +8,8 @@ var DemoApp = Class([Observable],{
 			ATTENTIVE: 'attentive',
 			POSITIONING: 'positioning',
 			CALIBRATION: 'calibration',
-			GAME: 'game',
+			GAME_EXPLORE: 'game-explore',
+			GAME_TARGET: 'game-target',
 		}
 	},
 	constructor: function(){
@@ -25,13 +26,16 @@ var DemoApp = Class([Observable],{
 	}
 });
 
-
-
-
-
 var demoApp;
+var GlobalFunc; //to be called by outside
+var $scope = {};
+
+
 $(document).ready(function(){
 	demoApp = new DemoApp();
+
+
+	$scope.game= new Game(Game.MODE.TARGET);
 });
 
 
