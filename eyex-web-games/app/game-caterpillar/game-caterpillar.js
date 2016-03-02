@@ -193,15 +193,12 @@ var GameCanvas = function(jqObj, gameMode) {
 	this._context.clearRect(0, 0, this.width(), this.height());
 
 	this.gameMode = gameMode;
-	this.wormBodyParts = [];
+	this.worm;
+	
 	this.foods = [];
 	this.lastFoodTs = 0;
+	this.maxFood = 10;
 
-	if(this.gameMode === Game.MODE.TARGET){
-		this.wormLength = 3;
-	}else{
-		this.wormLength = Configs.wormLength;
-	}
 
 	var that = this;
 
@@ -213,17 +210,40 @@ var GameCanvas = function(jqObj, gameMode) {
 	};
 
 	GameCanvas.prototype.createWorm = function() {
-		//put starting object
-		var faceStyle = 'none';
-		for (var i = 0; i < this.wormLength; i++) {
+		var wormLength;
 
-			if ((i === this.wormLength - 1) && App.settings.faceStyle !== 'none')
-				faceStyle = App.settings.faceStyle;
+		if(this.gameMode === Game.MODE.TARGET){
+			wormLength = 3;
+		}else{
+			wormLength = Configs.wormLength;
+		}
+		this.worm = new Worm(wormLength, Worm.STYLE.FACE);
 
-			var newObj = new BodyPart($scope.game.mouseX, $scope.game.mouseY, App.settings.colorSet, faceStyle);
-			this.wormBodyParts.push(newObj);
+		//also register a move event listerning to check collide?
+		this.worm.subscribe(function(evt){
+			switch(evt.event){
+				case 'move':
+				that.onWormMove(evt);
+				break;
+				default:
+				console.log("Undefined raised event: " + evt.event);
+			}
+		});
+	};
+	GameCanvas.prototype.onWormMove = function(evt){
+
+		var head = evt.sender.getHeadPart();
+		for(var i=0; i<this.foods.length; i++){
+			if(this.foods[i].checkCollide(head.x, head.y, head.size)){
+				//remove food
+				this.foods.splice(i,1); //remove item at i
+
+				//grow
+				this.worm.grow();
+			}
 		}
 	};
+
 
 	GameCanvas.prototype.createOneFood = function(){
 		var food = new Food(this._context);
@@ -249,69 +269,139 @@ var GameCanvas = function(jqObj, gameMode) {
 		}
 
 		//Draw worm
-		//set music volume according to moving Count
-		var movingCount = 0;
-		for (var i = 0; i < this.wormBodyParts.length; i++) {
-			this.wormBodyParts[i].draw(ctx);
-			movingCount += this.wormBodyParts[i].isMoving;
-		}
-		$scope.game.setMusicVolume(movingCount / this.wormLength);
+		this.worm.draw(ctx);
+		
 
 	};
 
 	GameCanvas.prototype.step = function(time) {
 		//do sth, e.g. physics, logic etc
 
-		//TODO: redo body animation to avoid set timeout?
 		//update worm location based on mouse
-		var lastIdx = this.wormBodyParts.length - 1;
-		for (var i = lastIdx; i >= 0; i--) {
-			var timeDelay = (lastIdx - i) * 50;
-
-			var part = that.wormBodyParts[i];
-			var targetX = $scope.game.mouseX;
-			var targetY = $scope.game.mouseY;
-
-			if(targetX && targetY){
-				setTimeout(function(bodyPart) {
-					if (!bodyPart) {
-					}
-
-					bodyPart.moveTowards(targetX, targetY);
-
-					//check collsion with head
-					if(bodyPart.faceStyle === 'face'){
-						for(var i=0; i<that.foods.length; i++){
-							if(that.foods[i].checkCollide(targetX, targetY,bodyPart.size)){
-
-								//remove food
-								that.foods.splice(i,1); //remove item at i
-
-								//worm grow
-							}
-						}
-					}
-
-				}, timeDelay, part);
-			}
-		}
-
-		//gen food every 5 s
-		if((time - this.lastFoodTs) > 5000){
-			this.createOneFood();
-			this.lastFoodTs = time;
-
-		} 
-
+		var targetX = $scope.game.mouseX;
+		var targetY = $scope.game.mouseY;
+		if(targetX && targetY)
+			this.worm.moveTowards(targetX, targetY);
 		
+		//gen food every 5 s
+		if(this.gameMode === Game.MODE.TARGET){
+			if((time - this.lastFoodTs) > 5000 && this.foods.length < this.maxFood){
+				this.createOneFood();
+				this.lastFoodTs = time;
 
-
+			} 
+		}
 	};
 
 	this._init();
 
 };
 
+var Worm = Class([Observable],{
+	$const: {
+		STYLE: {
+			NONE: 'none',
+			FACE: 'face',
+			XMAS: 'xmas'
+		}
+	},
+	constructor: function(length, style){
+		this.bodyParts = [];
+		this.initLength = length;
+		this.style = style ? style : Worm.STYLE.NONE;
+		this.reactionTime = 50; //200ms, 0.2s
+		this.colorSet = App.settings.colorSet;
+		
+
+		//put starting object
+		for (var i = 0; i < this.initLength; i++) {
+			var faceStyle = Worm.STYLE.NONE;
+
+			//first bodypart is head
+			if ((i === 0) && this.style !== Worm.STYLE.NONE)
+				faceStyle = this.style;
+
+			var newPart = new BodyPart($scope.game.mouseX, $scope.game.mouseY, this.colorSet, faceStyle);
+			this.bodyParts.push(newPart);
+		}
+
+	},
+	grow: function(){
+		var tailPart = this.bodyParts[this.bodyParts.length-1];
+		var newPart = new BodyPart(tailPart.x, tailPart.y, this.colorSet, Worm.STYLE.NONE);
+		this.bodyParts.push(newPart);
+	},
+	getHeadPart : function(){
+
+		return this.bodyParts[0];
+	},
+	draw: function(ctx){
+		//draw
+		//set music volume according to moving Count
+		var movingCount = 0;
+		//draw from tail to head so head is always on top
+		for (var i = this.bodyParts.length-1; i >= 0; i--) {
+			this.bodyParts[i].draw(ctx);
+			movingCount += this.bodyParts[i].isMoving;
+		}
+		$scope.game.setMusicVolume(movingCount / this.bodyParts.length);
+	},
+	moveTowards: function(targetX, targetY){
+		this.move();
+		this.attractTowards(targetX, targetY);
+	},
+	move: function(){
+		//trigger movement that match the ts
+		
+		var now = Date.now();
+		//loop from head to tail
+		for (var i = 0; i < this.bodyParts.length; i++) {
+			var eachBodyPart = this.bodyParts[i];
+			var movementQueue = eachBodyPart.movementQueue;
+
+			for(var j=0; j<movementQueue.length; j++){
+				if(now > movementQueue[j].timestamp){
+					
+					//do the movement
+					eachBodyPart.moveTowards(movementQueue[j].targetX, movementQueue[j].targetY);
+					//dequeue it
+					movementQueue.splice(j,1);
+
+					//raise an event
+					this.raise({event: "move", sender: this});
+					
+				}else{
+					//if the earlier one is not time yet, any items later wont be time yet either
+					break;
+				}
+			}
+		}
+
+		
+	},
+	attractTowards: function(targetX, targetY){
+		//remember timestamp that triiger this function
+		var now = Date.now();
+		// var that = this;
+
+		//loop from head to tail
+		for (var i = 0; i < this.bodyParts.length; i++) {
+			//queue movement with delay
+			var fireTimestamp = now + this.reactionTime * i ;
+			this.bodyParts[i].movementQueue.push(new Movement(targetX, targetY, fireTimestamp));
+			
+		}
+
+	}
+
+});
+
+var Movement = function(targetX, targetY, fireTimestamp){
+	this.targetX = targetX;
+	this.targetY = targetY;
+	this.timestamp = fireTimestamp;
+
+};
 
 var BodyPart = function(x, y, colorSet, faceStyle) {
 	// this.oldX = x;
@@ -322,6 +412,12 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 	this.decorImg = null;
 
 	this.isMoving = false;
+
+
+	var now = Date.now();
+	var targetX = $scope.game.mouseX;
+	var targetY = $scope.game.mouseY;
+	this.movementQueue = [];
 
 	var DAMPING = 0.999;
 	var ACCELERATION = 0.1;
@@ -351,10 +447,15 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 		this.y = newY;
 	};
 
+	BodyPart.prototype.moveTowards = function(targetX, targetY) {
+		this.move();
+		this.attractTowards(targetX, targetY);
+	};
 
 	BodyPart.prototype.move = function() {
 		this.x += this.velocityX * DAMPING;
 		this.y += this.velocityY * DAMPING;
+
 	};
 
 	BodyPart.prototype.attractTowards = function(x, y) {
@@ -389,10 +490,6 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 
 	};
 
-	BodyPart.prototype.moveTowards = function(targetX, targetY) {
-		this.move();
-		this.attractTowards(targetX, targetY);
-	};
 
 	BodyPart.prototype.draw = function(ctx) {
 		ctx.fillStyle = this.color;
@@ -481,8 +578,11 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 var Food = Class({
 	$const: {
 		TYPE: {
-			BEAN : 'bean'
-
+			BEAN : 'bean',
+			APPLE: 'apple',
+			LEAF: 'leaf',
+			FLOWER: 'flower'
+			//TODO: split different types into sub class?
 		}
 	},
 	constructor: function(ctx){
