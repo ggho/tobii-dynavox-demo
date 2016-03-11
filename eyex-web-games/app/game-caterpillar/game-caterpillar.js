@@ -38,6 +38,18 @@ $(document).ready(function() {
 			$scope.game.gameCanvas.updateDimension();
 	};
 
+	$(window).blur(function(){
+		console.log('blurring');
+		if ($scope.game)
+			$scope.game.pause();
+	});
+
+	$(window).focus(function(){
+		console.log('focusing');
+		if ($scope.game)
+			$scope.game.resume();
+	});
+
 
 	// From native app
 	GlobalFunc = function(x, y) {
@@ -57,16 +69,13 @@ var Game = function(mode) {
 	this.mouseY = -1;
 	this.mouseTs = 0;
 
-
 	this.gameMode = mode ? mode : Game.MODE.EXPLORE;
 	this.gameOn = false; //first on trigger by mouse move
 	this.gameLoop;
 	this.animationLoop;
 	this.gameCanvas;
 
-	var that = this;
-
-
+	this.music;
 
 	this._init();
 
@@ -81,7 +90,6 @@ Game.prototype._init = function() {
 	// this.creatureLine = new CreatureLine(5);
 	this.gameCanvas = new GameCanvas($('#game-canvas'), this.gameMode);
 
-	//TODO: fix hardcoding first audio, but whatever the brwoser support!!
 	this.music = this.gameCanvas.siblings('audio').get(0);
 	this.music.volume = 0.1; //start with low
 
@@ -164,6 +172,13 @@ Game.prototype.runGame = function() {
 	this.gameLoop = setTimeout(function(){that.runGame.call(that);}, 1000/60); //this.runGame.call(this), freq= 1/60s; 60FPS
 };
 
+Game.prototype.pause = function(){
+	this.pauseMusic();
+};
+
+Game.prototype.resume = function(){
+	this.startMusic();
+};
 
 Game.prototype.stop = function() {
 	if (this.gameLoop) {
@@ -344,14 +359,11 @@ var Worm = Class([Observable], {
 	},
 	draw: function(ctx) {
 		//draw
-		//set music volume according to moving Count
-		var movingCount = 0;
+		
 		//draw from tail to head so head is always on top
 		for (var i = this.bodyParts.length - 1; i >= 0; i--) {
 			this.bodyParts[i].draw(ctx);
-			movingCount += this.bodyParts[i].isMoving;
 		}
-		$scope.game.setMusicVolume(movingCount / this.bodyParts.length);
 	},
 	moveTowards: function(targetX, targetY) {
 		this.move();
@@ -360,11 +372,16 @@ var Worm = Class([Observable], {
 	move: function() {
 		//trigger movement that match the ts
 
+
 		var now = Date.now();
+		//set music volume according to moving Count
+		var movingCount = 0;
 		//loop from head to tail
 		for (var i = 0; i < this.bodyParts.length; i++) {
 			var eachBodyPart = this.bodyParts[i];
 			var movementQueue = eachBodyPart.movementQueue;
+
+			movingCount += this.bodyParts[i].isMoving;
 
 			for (var j = 0; j < movementQueue.length; j++) {
 				if (now > movementQueue[j].timestamp) {
@@ -383,6 +400,8 @@ var Worm = Class([Observable], {
 				}
 			}
 		}
+
+		$scope.game.setMusicVolume(movingCount / this.bodyParts.length);
 	},
 	attractTowards: function(targetX, targetY) {
 		//remember timestamp that triiger this function
