@@ -3,11 +3,14 @@ var Observable = Class({
 		this.handlers = []; //observers handlers	
 	},
 
-	subscribe: function(fn) {
-		if(this.handlers == undefined){
-			this.handlers = [];
-		}
-		this.handlers.push(fn);
+	subscribe: function(subscriber, handler) {
+		// if(this.handlers == undefined){
+		// 	this.handlers = [];
+		// }
+		this.handlers.push({
+			thisObj: subscriber,
+			fn: handler
+		});
 	},
 
 	unsubscribe: function(fn) {
@@ -20,10 +23,11 @@ var Observable = Class({
 			);
 	},
 
-	raise: function(o, thisObj) {
-		var scope = thisObj || window;
+	raise: function(evt, thisObj) {
+		var sender = thisObj || window;
 		this.handlers.forEach(function(item) {
-			item.call(scope, o);
+			var scope = item.thisObj || window;
+			item.fn.call(scope, evt, sender);
 		});
 	}
 

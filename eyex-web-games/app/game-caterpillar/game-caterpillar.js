@@ -23,9 +23,6 @@ App.settings = {
 
 
 $(document).ready(function() {
-
-
-
 	// Events handler
 	$(window).mousemove(function(e) {
 		if ($scope.game)
@@ -61,16 +58,12 @@ $(document).ready(function() {
 
 
 var Game = function(mode) {
-	this.lastMouseX = -1;
-	this.lastMouseY = -1;
-	this.lastMouseTs = 0;
-
-	this.mouseX = -1;
-	this.mouseY = -1;
+	this.mouseX = null;
+	this.mouseY = null;
 	this.mouseTs = 0;
 
-	this.gameMode = mode ? mode : Game.MODE.EXPLORE;
-	this.gameOn = false; //first on trigger by mouse move
+	this.gameMode = mode || Game.MODE.EXPLORE;
+	//this.gameOn = false; //first on trigger by mouse move
 	this.gameLoop;
 	this.animationLoop;
 	this.gameCanvas;
@@ -78,10 +71,12 @@ var Game = function(mode) {
 	this.music;
 
 	this._init();
-
 };
 
 Game.MODE = {
+	IDLE: 'idle',
+	ATTENTIVE: 'attentive',
+	POSITIONING: 'positioning',
 	EXPLORE: 'explore',
 	TARGET: 'target'
 };
@@ -110,19 +105,17 @@ Game.prototype.setMouse = function(mouseX, mouseY) {
 	if (now - this.mouseTs < 20) {
 		return;
 	}
-	this.lastMouseX = this.mouseX;
-	this.lastMouseY = this.mouseY;
-	this.lastMouseTs = this.mouseTs;
 
 	this.mouseX = mouseX;
 	this.mouseY = mouseY;
 	this.mouseTs = new Date().getTime();
 
 
-	if (!this.gameOn) {
-		this.gameOn = true;
-		this.run();
-	}
+	// if (!this.gameOn) {
+	// 	this.gameOn = true;
+	// 	this.run();
+	// }
+	this.startMusic();
 
 	//temp for debug
 	$('#info').text(this.mouseX + ', ' + this.mouseY);
@@ -145,11 +138,17 @@ Game.prototype.pauseMusic = function() {
 
 Game.prototype.run = function() {
 	//
-	this.gameCanvas.createWorm();
-	this.startMusic();
+	// this.gameCanvas.createWorm();
+	//this.startMusic();
 
 	this.runGame();
 	this.runAnimation();
+
+	if(this.gameMode === Game.MODE.IDLE){
+		this.startIdleMode();
+
+
+	}
 };
 
 Game.prototype.runAnimation = function() {
@@ -162,7 +161,7 @@ Game.prototype.runAnimation = function() {
 	}
 	else{ //For browsers that doesn't support requestAnimationFrame, e.g. awesomium
 		this.animationLoop = setTimeout(function(){that.test.call(that);}, 1000/30); // 30 FPS 
-	}
+}
 
 };
 
@@ -202,14 +201,58 @@ Game.prototype.stop = function() {
 
 };
 
+//HERE: TODO: handle different states / modes
+Game.prototype.onEvent = function(evt, sender){
+	switch (evt.event) {
+		case 'stateChange':
+		console.log(evt);
+		break;
+		default:
+		console.log("Undefined raised event: " + evt.event);
+	}
+};
 
+//Game.defaultPath = [[0,0], [1,0],[1,1], [0,1]];
+Game.defaultPath = [[-0.2,-0.2], [0.5, 0.1], [1.2,-0.2], null, null,[0.9, 0.5], [1.2,1.2], [0.4, 0.9], [-0.2, 1.1], null, [0.05,0.5]]; //normalised x, y
+Game.prototype.startIdleMode = function(){
+	this.gameMode = Game.MODE.IDLE;
+
+	//set mouseX and mouseY according to predefined path
+	this.pathIdx = 0;
+
+	var that = this;
+	this.autoGameLoop = setInterval(function(){
+		var nextPos = Game.defaultPath[that.pathIdx];
+		if(nextPos !== null){
+			var newX = nextPos[0]*that.gameCanvas.width();
+			var newY = nextPos[1]*that.gameCanvas.height();
+
+			that.setMouse(newX,newY);
+		}
+
+		that.pathIdx = (that.pathIdx+1)%Game.defaultPath.length;
+	}, 1000); //every 1 s
+
+
+
+};
+
+Game.prototype.startPositioningMode = function(){
+
+
+};
+
+/*
+* Class GameCanvas
+*
+*/
 var GameCanvas = function(jqObj, gameMode) {
 	//constructor
 	$.extend(this, jqObj);
 
 	//init vars
 	this._context = this.get(0).getContext("2d");
-	this._context.clearRect(0, 0, this.width(), this.height());
+	//this._context.clearRect(0, 0, this.width(), this.height());
 
 	this.gameMode = gameMode;
 	this.worm;
@@ -218,11 +261,7 @@ var GameCanvas = function(jqObj, gameMode) {
 	this.lastFoodTs = 0;
 	this.maxFood = 10;
 
-
-	var that = this;
-
 	this._init();
-
 };
 
 
@@ -231,6 +270,8 @@ GameCanvas.prototype._init = function() {
 	//force set canvas width and height
 	this.updateDimension();
 	this.clearCanvas();
+
+	this.createWorm();
 };
 
 GameCanvas.prototype.createWorm = function() {
@@ -244,20 +285,21 @@ GameCanvas.prototype.createWorm = function() {
 	this.worm = new Worm(wormLength, Worm.STYLE.FACE);
 
 	//also register a move event listerning to check collide?
-	var that = this;
-	this.worm.subscribe(function(evt) {
-		switch (evt.event) {
-			case 'move':
-				that.onWormMove(evt);
-				break;
-			default:
-				console.log("Undefined raised event: " + evt.event);
-		}
-	});
+	this.worm.subscribe(this,this.onEvent);
+};
+GameCanvas.prototype.onEvent = function(evt, sender){
+	switch (evt.event) {
+		case 'wormMove':
+		//console.log('wormMove');
+		this.onWormMove(evt);
+		break;
+		default:
+		console.log("Undefined raised event: " + evt.event);
+	}
 };
 GameCanvas.prototype.onWormMove = function(evt) {
 
-	var head = evt.sender.getHeadPart();
+	var head = this.worm.getHeadPart();
 	for (var i = 0; i < this.foods.length; i++) {
 		if (this.foods[i].checkCollide(head.x, head.y, head.size)) {
 			//remove food
@@ -305,8 +347,9 @@ GameCanvas.prototype.step = function(time) {
 	//update worm location based on mouse
 	var targetX = $scope.game.mouseX;
 	var targetY = $scope.game.mouseY;
-	if (targetX && targetY)
+	if (targetX !== null && targetY !== null){
 		this.worm.moveTowards(targetX, targetY);
+	}
 
 	//gen food every 5 s
 	if (this.gameMode === Game.MODE.TARGET) {
@@ -327,12 +370,18 @@ var Worm = Class([Observable], {
 			XMAS: 'xmas'
 		}
 	},
-	constructor: function(length, style) {
+	constructor: function(length, style, initX, initY) {
+		//call parents constructor
+		Observable.call(this);
+
 		this.bodyParts = [];
 		this.initLength = length;
 		this.style = style ? style : Worm.STYLE.NONE;
 		this.reactionTime = 50; //200ms, 0.2s
 		this.colorSet = App.settings.colorSet;
+
+		this.x = initX || -100;
+		this.y = initY || -100;
 
 
 		//put starting object
@@ -343,14 +392,19 @@ var Worm = Class([Observable], {
 			if ((i === 0) && this.style !== Worm.STYLE.NONE)
 				faceStyle = this.style;
 
-			var newPart = new BodyPart($scope.game.mouseX, $scope.game.mouseY, this.colorSet, faceStyle);
+
+			var newPart = new BodyPart(this.x, this.y, this.colorSet, faceStyle);
 			this.bodyParts.push(newPart);
 		}
 
 	},
 	grow: function() {
 		var tailPart = this.bodyParts[this.bodyParts.length - 1];
-		var newPart = new BodyPart(tailPart.x, tailPart.y, this.colorSet, Worm.STYLE.NONE);
+		//var newPart = new BodyPart(tailPart.x, tailPart.y, this.colorSet, Worm.STYLE.NONE);
+
+		//TOFIX: also duplicate movementQueue
+		var newPart = tailPart.duplicate();
+
 		this.bodyParts.push(newPart);
 	},
 	getHeadPart: function() {
@@ -366,13 +420,13 @@ var Worm = Class([Observable], {
 		}
 	},
 	moveTowards: function(targetX, targetY) {
+		
+
 		this.move();
 		this.attractTowards(targetX, targetY);
 	},
 	move: function() {
 		//trigger movement that match the ts
-
-
 		var now = Date.now();
 		//set music volume according to moving Count
 		var movingCount = 0;
@@ -381,40 +435,54 @@ var Worm = Class([Observable], {
 			var eachBodyPart = this.bodyParts[i];
 			var movementQueue = eachBodyPart.movementQueue;
 
-			movingCount += this.bodyParts[i].isMoving;
 
+			//0 is the earliest
 			for (var j = 0; j < movementQueue.length; j++) {
 				if (now > movementQueue[j].timestamp) {
-
-					//do the movement
-					eachBodyPart.moveTowards(movementQueue[j].targetX, movementQueue[j].targetY);
+					
 					//dequeue it
-					movementQueue.splice(j, 1);
-
-					//raise an event
-					this.raise({event: "move", sender: this});
+					var movement = movementQueue.splice(j, 1);
+					//do the movement
+					eachBodyPart.moveTowards(movement[0].targetX, movement[0].targetY);
 
 				} else {
 					//if the earlier one is not time yet, any items later wont be time yet either
 					break;
 				}
+				
 			}
+
+			movingCount += eachBodyPart.isMoving();
 		}
+		if(movingCount>0){
+			//console.log(movingCount + ' ');
+			//raise an event
+			this.raise({event: "wormMove"}, this);
+		}
+		//console.log(this.bodyParts[this.bodyParts.length-1].movementQueue);
 
 		$scope.game.setMusicVolume(movingCount / this.bodyParts.length);
 	},
 	attractTowards: function(targetX, targetY) {
+		// var head = this.getHeadPart();
+		// if(head.x === targetX && head.y === targetY)
+		// 	return;
+		
 		//remember timestamp that triiger this function
 		var now = Date.now();
 		// var that = this;
+
+		//TODO: add logic to smooth out movements
+		this.x = targetX;
+		this.y = targetY;
 
 		//loop from head to tail
 		for (var i = 0; i < this.bodyParts.length; i++) {
 			//queue movement with delay
 			var fireTimestamp = now + this.reactionTime * i;
 			this.bodyParts[i].movementQueue.push(new Movement(targetX, targetY, fireTimestamp));
-
 		}
+		//console.log('before:' +this.bodyParts[0].movementQueue.length + ' ' + this.bodyParts[this.bodyParts.length-1].movementQueue.length);
 
 	}
 
@@ -424,8 +492,11 @@ var Movement = function(targetX, targetY, fireTimestamp) {
 	this.targetX = targetX;
 	this.targetY = targetY;
 	this.timestamp = fireTimestamp;
-
 };
+
+Movement.prototype.duplicate = function(){
+	return new Movement(this.targetX, this.targetY, this.fireTimestamp);
+}
 
 var BodyPart = function(x, y, colorSet, faceStyle) {
 	// this.oldX = x;
@@ -435,26 +506,19 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 	this.faceStyle = faceStyle; //none, face, xmas
 	this.decorImg = null;
 
-	this.isMoving = false;
-
-
-	var now = Date.now();
-	var targetX = $scope.game.mouseX;
-	var targetY = $scope.game.mouseY;
 	this.movementQueue = [];
-
-	this.DAMPING = 0.999;
-	this.ACCELERATION = 0.1;
-	this.MAX_SPEED = 50; //no direction
 
 	this.velocityX = 0;
 	this.velocityY = 0;
+	this.direction = 0; //North
 
+	this.colorSet = colorSet;
 	this.colors = Configs.colorSets[colorSet];
 
 	this.color = this.colors[Math.floor((Math.random() * 9))]; //random number 0-8
 	this.antennaColor = this.colors[Math.floor((Math.random() * 9))]; //random number 0-8
 	this.size = (Math.floor((Math.random() * 11)) + 20); //size: 20 - 30
+
 
 	if (this.faceStyle === 'xmas') {
 		this.decorImg = new Image();
@@ -463,14 +527,25 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 		this.decorImg.src = '../image/xmas/Hat' + fileIdx + '.png';
 		this.decorImg.width = this.size * 4.5;//h/w = 414/421 = 0.98
 		this.decorImg.height = this.decorImg.width * 0.98;
-
 	}
 };
 
-BodyPart.prototype.setXY = function(newX, newY) {
-	this.x = newX;
-	this.y = newY;
+BodyPart.prototype.duplicate = function(){
+	var newPart = new BodyPart(this.x, this.y, this.colorSet, this.faceStyle);
+
+
+
+	for(var i=0; i<this.movementQueue; i++){
+		var eachMovement = this.movementQueue[i];
+		newPart.movementQueue.push(eachMovement.duplicate());
+	}
+
+	return newPart;
 };
+//static vars
+BodyPart.DAMPING = 0.999;
+BodyPart.ACCELERATION = 0.1;
+BodyPart.MAX_SPEED = 50; //no direction
 
 BodyPart.prototype.moveTowards = function(targetX, targetY) {
 	this.move();
@@ -478,42 +553,44 @@ BodyPart.prototype.moveTowards = function(targetX, targetY) {
 };
 
 BodyPart.prototype.move = function() {
-	this.x += this.velocityX * this.DAMPING;
-	this.y += this.velocityY * this.DAMPING;
-
+	this.x += this.velocityX * BodyPart.DAMPING;
+	this.y += this.velocityY * BodyPart.DAMPING;
 };
 
 BodyPart.prototype.attractTowards = function(x, y) {
 	var dx = x - this.x;
 	var dy = y - this.y;
 
-	this.velocityX = dx * this.ACCELERATION;
+	this.velocityX = dx * BodyPart.ACCELERATION;
 
-	if (this.velocityX > this.MAX_SPEED) {
-		this.velocityX = this.MAX_SPEED;
-	} else if (this.velocityX < - this.MAX_SPEED) {
-		this.velocityX = - this.MAX_SPEED;
+	if (this.velocityX > BodyPart.MAX_SPEED) {
+		this.velocityX = BodyPart.MAX_SPEED;
+	} else if (this.velocityX < - BodyPart.MAX_SPEED) {
+		this.velocityX = - BodyPart.MAX_SPEED;
 	} else if (Math.abs(this.velocityX) < 0.01) {
 		this.velocityX = 0;
 	}
 
-	this.velocityY = dy * this.ACCELERATION;
-	if (this.velocityY > this.MAX_SPEED) {
-		this.velocityY = this.MAX_SPEED;
-	} else if (this.velocityY < - this.MAX_SPEED) {
-		this.velocityY = -this.MAX_SPEED;
+	this.velocityY = dy * BodyPart.ACCELERATION;
+	if (this.velocityY > BodyPart.MAX_SPEED) {
+		this.velocityY = BodyPart.MAX_SPEED;
+	} else if (this.velocityY < - BodyPart.MAX_SPEED) {
+		this.velocityY = -BodyPart.MAX_SPEED;
 	} else if (Math.abs(this.velocityY) < 0.01) {
 		this.velocityY = 0;
 	}
 
 
 	if (this.velocityX === 0 && this.velocityY === 0) { //no movement
-		this.isMoving = false;
-	} else {
-		this.isMoving = true;
+		this.x = x; 
+		this.y = y;
 	}
 
 };
+
+BodyPart.prototype.isMoving = function(){
+	return this.velocityX !== 0 && this.velocityY !== 0;
+}
 
 
 BodyPart.prototype.draw = function(ctx) {
@@ -606,7 +683,7 @@ var Food = Class({
 			APPLE: 'apple',
 			LEAF: 'leaf',
 			FLOWER: 'flower'
-							//TODO: split different types into sub class?
+			//TODO: split different types into sub class?
 		}
 	},
 	constructor: function(ctx) {
@@ -625,12 +702,12 @@ var Food = Class({
 
 		switch (this.type) {
 			case Food.TYPE.BEAN:
-				ctx.fillStyle = "#F00"
-				ctx.beginPath();
-				ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
-				ctx.fill();
+			ctx.fillStyle = "#F00"
+			ctx.beginPath();
+			ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
+			ctx.fill();
 
-				break;
+			break;
 			default:
 
 		}

@@ -13,6 +13,8 @@ var DemoApp = Class([Observable],{
 		}
 	},
 	constructor: function(){
+		Observable.call(this); //call parent's constructor
+
 		this._state = DemoApp.STATE.IDLE;
 	},
 	// Getter/Setter 
@@ -21,7 +23,11 @@ var DemoApp = Class([Observable],{
 			return this._state;
 		},
 		set: function(value) {
+			if(this._state == value)
+				return;
+			
 			this._state = value;
+			this.raise({event: 'stateChange', data: this._state}, this);
 		}
 	}
 });
@@ -36,6 +42,9 @@ $(document).ready(function(){
 
 
 	$scope.game= new Game(Game.MODE.TARGET);
+	demoApp.subscribe($scope.game, $scope.game.onEvent);
+
+	$scope.game.run();
 });
 
 
