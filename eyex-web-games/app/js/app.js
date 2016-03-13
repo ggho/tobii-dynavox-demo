@@ -36,12 +36,10 @@ var demoApp;
 var GlobalFunc; //to be called by outside
 var $scope = {};
 
-
 $(document).ready(function(){
 	demoApp = new DemoApp();
 
-
-	$scope.game= new Game(Game.MODE.TARGET);
+	$scope.game= new Game(Game.MODE.IDLE);
 	demoApp.subscribe($scope.game, $scope.game.onEvent);
 
 	$scope.game.run();

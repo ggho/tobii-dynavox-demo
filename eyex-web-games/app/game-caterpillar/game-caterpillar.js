@@ -237,6 +237,7 @@ Game.prototype.startIdleMode = function(){
 
 };
 
+//HERE
 Game.prototype.startPositioningMode = function(){
 
 
@@ -545,7 +546,7 @@ BodyPart.prototype.duplicate = function(){
 //static vars
 BodyPart.DAMPING = 0.999;
 BodyPart.ACCELERATION = 0.1;
-BodyPart.MAX_SPEED = 50; //no direction
+BodyPart.MAX_SPEED = 20; //no direction
 
 BodyPart.prototype.moveTowards = function(targetX, targetY) {
 	this.move();
@@ -562,7 +563,6 @@ BodyPart.prototype.attractTowards = function(x, y) {
 	var dy = y - this.y;
 
 	this.velocityX = dx * BodyPart.ACCELERATION;
-
 	if (this.velocityX > BodyPart.MAX_SPEED) {
 		this.velocityX = BodyPart.MAX_SPEED;
 	} else if (this.velocityX < - BodyPart.MAX_SPEED) {
