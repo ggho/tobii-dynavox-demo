@@ -7,7 +7,7 @@ var DemoApp = Class([Observable],{
 			IDLE: 'idle',
 			ATTENTIVE: 'attentive',
 			POSITIONING: 'positioning',
-			CALIBRATION: 'calibration',
+			//CALIBRATION: 'calibration',
 			GAME_EXPLORE: 'game-explore',
 			GAME_TARGET: 'game-target',
 		}
@@ -15,7 +15,9 @@ var DemoApp = Class([Observable],{
 	constructor: function(){
 		Observable.call(this); //call parent's constructor
 
-		this._state = DemoApp.STATE.IDLE;
+		this._state = DemoApp.STATE.GAME_EXPLORE;
+
+			$('#info-state').text(this._state);
 	},
 	// Getter/Setter 
 	state: {
@@ -28,6 +30,9 @@ var DemoApp = Class([Observable],{
 			
 			this._state = value;
 			this.raise({event: 'stateChange', data: this._state}, this);
+
+			//debug
+			$('#info-state').text(this._state);
 		}
 	}
 });
@@ -39,10 +44,18 @@ var $scope = {};
 $(document).ready(function(){
 	demoApp = new DemoApp();
 
-	$scope.game= new Game(Game.MODE.IDLE);
+
+	$scope.game= new Game(demoApp.state);
 	demoApp.subscribe($scope.game, $scope.game.onEvent);
+	//$scope.game.
 
 	$scope.game.run();
+
+	// From native app
+	GlobalFunc = function(x, y) {
+
+		$scope.game.setMouse(x, y);
+	};
 });
 
 

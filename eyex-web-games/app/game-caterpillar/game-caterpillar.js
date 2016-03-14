@@ -48,42 +48,28 @@ $(document).ready(function() {
 	});
 
 
-	// From native app
-	GlobalFunc = function(x, y) {
-
-		$scope.game.setMouse(x, y);
-	};
+	
 
 });
 
 
-var Game = function(mode) {
+var Game = function(appState) {
 	this.mouseX = null;
 	this.mouseY = null;
 	this.mouseTs = 0;
 
-	this.gameMode = mode || Game.MODE.EXPLORE;
-	//this.gameOn = false; //first on trigger by mouse move
 	this.gameLoop;
 	this.animationLoop;
 	this.gameCanvas;
 
 	this.music;
 
-	this._init();
+	this._init(appState);
 };
 
-Game.MODE = {
-	IDLE: 'idle',
-	ATTENTIVE: 'attentive',
-	POSITIONING: 'positioning',
-	EXPLORE: 'explore',
-	TARGET: 'target'
-};
-
-Game.prototype._init = function() {
+Game.prototype._init = function(appState) {
 	// this.creatureLine = new CreatureLine(5);
-	this.gameCanvas = new GameCanvas($('#game-canvas'), this.gameMode);
+	this.gameCanvas = new GameCanvas($('#game-canvas'), appState);
 
 	this.music = this.gameCanvas.siblings('audio').get(0);
 	this.music.volume = 0.1; //start with low
@@ -143,12 +129,6 @@ Game.prototype.run = function() {
 
 	this.runGame();
 	this.runAnimation();
-
-	if(this.gameMode === Game.MODE.IDLE){
-		this.startIdleMode();
-
-
-	}
 };
 
 Game.prototype.runAnimation = function() {
@@ -160,7 +140,7 @@ Game.prototype.runAnimation = function() {
 		this.animationLoop = requestAnimationFrame(function(){that.runAnimation.call(that)});
 	}
 	else{ //For browsers that doesn't support requestAnimationFrame, e.g. awesomium
-		this.animationLoop = setTimeout(function(){that.test.call(that);}, 1000/30); // 30 FPS 
+		this.animationLoop = setTimeout(function(){that.runAnimation.call(that);}, 1000/30); // 30 FPS 
 }
 
 };
@@ -205,17 +185,20 @@ Game.prototype.stop = function() {
 Game.prototype.onEvent = function(evt, sender){
 	switch (evt.event) {
 		case 'stateChange':
-		console.log(evt);
-		break;
+			console.log(evt);
+			var newState = evt.data;
+			this.gameCanvas.reset(newState);
+			break;
 		default:
 		console.log("Undefined raised event: " + evt.event);
 	}
 };
 
+//REMOVE BELOW LOGIC, Move to GameCanvas.step
 //Game.defaultPath = [[0,0], [1,0],[1,1], [0,1]];
 Game.defaultPath = [[-0.2,-0.2], [0.5, 0.1], [1.2,-0.2], null, null,[0.9, 0.5], [1.2,1.2], [0.4, 0.9], [-0.2, 1.1], null, [0.05,0.5]]; //normalised x, y
 Game.prototype.startIdleMode = function(){
-	this.gameMode = Game.MODE.IDLE;
+	//this.gameMode = Game.MODE.IDLE;
 
 	//set mouseX and mouseY according to predefined path
 	this.pathIdx = 0;
@@ -247,7 +230,7 @@ Game.prototype.startPositioningMode = function(){
 * Class GameCanvas
 *
 */
-var GameCanvas = function(jqObj, gameMode) {
+var GameCanvas = function(jqObj, gameState) {
 	//constructor
 	$.extend(this, jqObj);
 
@@ -255,7 +238,14 @@ var GameCanvas = function(jqObj, gameMode) {
 	this._context = this.get(0).getContext("2d");
 	//this._context.clearRect(0, 0, this.width(), this.height());
 
-	this.gameMode = gameMode;
+	this.gameState = null;
+	this.reset(gameState);
+
+};
+GameCanvas.prototype.reset = function(gameState) {
+	if(gameState)
+		this.gameState = gameState ;
+
 	this.worm;
 
 	this.foods = [];
@@ -263,8 +253,7 @@ var GameCanvas = function(jqObj, gameMode) {
 	this.maxFood = 10;
 
 	this._init();
-};
-
+}
 
 GameCanvas.prototype._init = function() {
 
@@ -278,7 +267,7 @@ GameCanvas.prototype._init = function() {
 GameCanvas.prototype.createWorm = function() {
 	var wormLength;
 
-	if (this.gameMode === Game.MODE.TARGET) {
+	if (this.gameState === DemoApp.STATE.GAME_TARGET) {
 		wormLength = 3;
 	} else {
 		wormLength = Configs.wormLength;
@@ -291,9 +280,9 @@ GameCanvas.prototype.createWorm = function() {
 GameCanvas.prototype.onEvent = function(evt, sender){
 	switch (evt.event) {
 		case 'wormMove':
-		//console.log('wormMove');
-		this.onWormMove(evt);
-		break;
+			//console.log('wormMove');
+			this.onWormMove(evt);
+			break;
 		default:
 		console.log("Undefined raised event: " + evt.event);
 	}
@@ -353,13 +342,24 @@ GameCanvas.prototype.step = function(time) {
 	}
 
 	//gen food every 5 s
-	if (this.gameMode === Game.MODE.TARGET) {
+	if (this.gameState === DemoApp.STATE.GAME_TARGET) {
 		if ((time - this.lastFoodTs) > 5000 && this.foods.length < this.maxFood) {
 			this.createOneFood();
 			this.lastFoodTs = time;
 
 		}
 	}
+
+
+	//TODO: handle different states here
+	switch(this.gameState){
+		case DemoApp.STATE.IDLE:
+
+			break;
+		default:
+	}
+
+
 };
 
 
