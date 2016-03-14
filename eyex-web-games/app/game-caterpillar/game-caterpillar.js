@@ -139,10 +139,10 @@ Game.prototype.runAnimation = function() {
 		//console.log(this.runAnimation);
 		this.animationLoop = requestAnimationFrame(function(){that.runAnimation.call(that)});
 	}
-	else{ //For browsers that doesn't support requestAnimationFrame, e.g. awesomium
+	else{ 
+		//For browsers that doesn't support requestAnimationFrame, e.g. awesomium
 		this.animationLoop = setTimeout(function(){that.runAnimation.call(that);}, 1000/30); // 30 FPS 
-}
-
+	}
 };
 
 Game.prototype.runGame = function() {
@@ -185,10 +185,10 @@ Game.prototype.stop = function() {
 Game.prototype.onEvent = function(evt, sender){
 	switch (evt.event) {
 		case 'stateChange':
-			console.log(evt);
-			var newState = evt.data;
-			this.gameCanvas.reset(newState);
-			break;
+		console.log(evt);
+		var newState = evt.data;
+		this.gameCanvas.reset(newState);
+		break;
 		default:
 		console.log("Undefined raised event: " + evt.event);
 	}
@@ -253,69 +253,8 @@ GameCanvas.prototype.reset = function(gameState) {
 	this.maxFood = 10;
 
 	this._init();
-}
-
-GameCanvas.prototype._init = function() {
-
-	//force set canvas width and height
-	this.updateDimension();
-	this.clearCanvas();
-
-	this.createWorm();
 };
 
-GameCanvas.prototype.createWorm = function() {
-	var wormLength;
-
-	if (this.gameState === DemoApp.STATE.GAME_TARGET) {
-		wormLength = 3;
-	} else {
-		wormLength = Configs.wormLength;
-	}
-	this.worm = new Worm(wormLength, Worm.STYLE.FACE);
-
-	//also register a move event listerning to check collide?
-	this.worm.subscribe(this,this.onEvent);
-};
-GameCanvas.prototype.onEvent = function(evt, sender){
-	switch (evt.event) {
-		case 'wormMove':
-			//console.log('wormMove');
-			this.onWormMove(evt);
-			break;
-		default:
-		console.log("Undefined raised event: " + evt.event);
-	}
-};
-GameCanvas.prototype.onWormMove = function(evt) {
-
-	var head = this.worm.getHeadPart();
-	for (var i = 0; i < this.foods.length; i++) {
-		if (this.foods[i].checkCollide(head.x, head.y, head.size)) {
-			//remove food
-			this.foods.splice(i, 1); //remove item at i
-
-			//grow
-			this.worm.grow();
-		}
-	}
-};
-
-
-GameCanvas.prototype.createOneFood = function() {
-	var food = new Food(this._context);
-	this.foods.push(food);
-};
-
-GameCanvas.prototype.updateDimension = function() {
-	this.get(0).width = this.width();
-	this.get(0).height = this.height();
-};
-
-GameCanvas.prototype.clearCanvas = function() {
-	this._context.clearRect(0, 0, this.width(), this.height());
-
-};
 GameCanvas.prototype.draw = function() {
 	this.clearCanvas();
 	var ctx = this._context;//$('#game-canvas').get(0).getContext("2d");//
@@ -355,12 +294,79 @@ GameCanvas.prototype.step = function(time) {
 	switch(this.gameState){
 		case DemoApp.STATE.IDLE:
 
-			break;
+
+
+		break;
 		default:
 	}
 
 
 };
+
+
+GameCanvas.prototype._init = function() {
+
+	//force set canvas width and height
+	this.updateDimension();
+	this.clearCanvas();
+
+	this.createWorm();
+};
+
+
+GameCanvas.prototype.onEvent = function(evt, sender){
+	switch (evt.event) {
+		case 'wormMove':
+		//console.log('wormMove');
+		this.onWormMove(evt);
+		break;
+		default:
+		console.log("Undefined raised event: " + evt.event);
+	}
+};
+GameCanvas.prototype.onWormMove = function(evt) {
+
+	var head = this.worm.getHeadPart();
+	for (var i = 0; i < this.foods.length; i++) {
+		if (this.foods[i].checkCollide(head.x, head.y, head.size)) {
+			//remove food
+			this.foods.splice(i, 1); //remove item at i
+
+			//grow
+			this.worm.grow();
+		}
+	}
+};
+
+GameCanvas.prototype.createWorm = function() {
+	var wormLength;
+
+	if (this.gameState === DemoApp.STATE.GAME_TARGET) {
+		wormLength = 3;
+	} else {
+		wormLength = Configs.wormLength;
+	}
+	this.worm = new Worm(wormLength, Worm.STYLE.FACE);
+
+	//also register a move event listerning to check collide?
+	this.worm.subscribe(this,this.onEvent);
+};
+
+GameCanvas.prototype.createOneFood = function() {
+	var food = new Food(this._context);
+	this.foods.push(food);
+};
+
+GameCanvas.prototype.updateDimension = function() {
+	this.get(0).width = this.width();
+	this.get(0).height = this.height();
+};
+
+GameCanvas.prototype.clearCanvas = function() {
+	this._context.clearRect(0, 0, this.width(), this.height());
+
+};
+
 
 
 var Worm = Class([Observable], {
