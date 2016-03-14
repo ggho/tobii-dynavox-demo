@@ -97,10 +97,6 @@ Game.prototype.setMouse = function(mouseX, mouseY) {
 	this.mouseTs = new Date().getTime();
 
 
-	// if (!this.gameOn) {
-	// 	this.gameOn = true;
-	// 	this.run();
-	// }
 	this.startMusic();
 
 	//temp for debug
@@ -185,6 +181,8 @@ Game.prototype.stop = function() {
 Game.prototype.onEvent = function(evt, sender){
 	switch (evt.event) {
 		case 'stateChange':
+
+	//TOFIX: dont always replay music when state change
 		console.log(evt);
 		var newState = evt.data;
 		this.gameCanvas.reset(newState);
@@ -192,32 +190,6 @@ Game.prototype.onEvent = function(evt, sender){
 		default:
 		console.log("Undefined raised event: " + evt.event);
 	}
-};
-
-//REMOVE BELOW LOGIC, Move to GameCanvas.step
-//Game.defaultPath = [[0,0], [1,0],[1,1], [0,1]];
-Game.defaultPath = [[-0.2,-0.2], [0.5, 0.1], [1.2,-0.2], null, null,[0.9, 0.5], [1.2,1.2], [0.4, 0.9], [-0.2, 1.1], null, [0.05,0.5]]; //normalised x, y
-Game.prototype.startIdleMode = function(){
-	//this.gameMode = Game.MODE.IDLE;
-
-	//set mouseX and mouseY according to predefined path
-	this.pathIdx = 0;
-
-	var that = this;
-	this.autoGameLoop = setInterval(function(){
-		var nextPos = Game.defaultPath[that.pathIdx];
-		if(nextPos !== null){
-			var newX = nextPos[0]*that.gameCanvas.width();
-			var newY = nextPos[1]*that.gameCanvas.height();
-
-			that.setMouse(newX,newY);
-		}
-
-		that.pathIdx = (that.pathIdx+1)%Game.defaultPath.length;
-	}, 1000); //every 1 s
-
-
-
 };
 
 //HERE
@@ -242,11 +214,18 @@ var GameCanvas = function(jqObj, gameState) {
 	this.reset(gameState);
 
 };
+
+//static vars
+GameCanvas.idleMovementInterval = 1000; //1s
+
+//class methods
 GameCanvas.prototype.reset = function(gameState) {
 	if(gameState)
 		this.gameState = gameState ;
 
 	this.worm;
+	this.wormHide = true; //for idle mode, switching between true and false (hide and show)
+	this.wormPathQueue = new Queue();
 
 	this.foods = [];
 	this.lastFoodTs = 0;
@@ -266,8 +245,6 @@ GameCanvas.prototype.draw = function() {
 
 	//Draw worm
 	this.worm.draw(ctx);
-
-
 };
 
 GameCanvas.prototype.step = function(time) {
@@ -282,27 +259,128 @@ GameCanvas.prototype.step = function(time) {
 
 	//gen food every 5 s
 	if (this.gameState === DemoApp.STATE.GAME_TARGET) {
-		if ((time - this.lastFoodTs) > 5000 && this.foods.length < this.maxFood) {
-			this.createOneFood();
-			this.lastFoodTs = time;
-
-		}
+		
 	}
-
 
 	//TODO: handle different states here
 	switch(this.gameState){
 		case DemoApp.STATE.IDLE:
-
-
-
+		this.stepIdle(time);
+		break;
+		case DemoApp.STATE.GAME_TARGET:
+		this.stepGameTarget(time);
 		break;
 		default:
 	}
-
-
 };
 
+GameCanvas.prototype.stepIdle = function(time){
+	//dequeue and do it
+	var curMovement = this.wormPathQueue.peek();
+	var nextRegion = 0;
+
+	if(curMovement === null){
+		//empty queue
+		this._planIdleMovements(nextRegion, time+GameCanvas.idleMovementInterval);
+	}else if(curMovement && time > curMovement.timestamp){
+		curMovement = this.wormPathQueue.dequeue();
+
+		if(curMovement.targetX!=undefined && curMovement.targetY!=undefined)
+			$scope.game.setMouse(curMovement.targetX, curMovement.targetY);
+
+		//only set next Region when the movement is out of canvas 
+		if(curMovement.region !== null && curMovement.region < 10){
+			nextRegion = (curMovement.region+1)%4;
+
+			//time should be set relative to last item in the queue
+			var ts = this.wormPathQueue.peekLast().timestamp+GameCanvas.idleMovementInterval;
+			this._planIdleMovements(nextRegion, ts);
+		}
+	}
+};
+GameCanvas.prototype.stepGameTarget = function(time){
+	if ((time - this.lastFoodTs) > 5000 && this.foods.length < this.maxFood) {
+		this.createOneFood();
+		this.lastFoodTs = time;
+	}
+};
+
+/**
+@param regionIdx: 0, 1,2,3
+*/
+GameCanvas.prototype._planIdleMovements = function(regionIdx, nextTimestamp){
+	if(regionIdx > 4){
+		return;
+	}
+
+	var waitPlaceholder = this.createIdleMovement(null, nextTimestamp, true);
+
+	//gen random waiting time
+	if(Math.random()<0.5){
+		//TODO: vary waiting time
+		nextTimestamp += 3000; //GameCanvas.idleMovementInterval;
+	}
+
+	var showMovement = this.createIdleMovement(regionIdx, nextTimestamp);
+
+	
+	nextTimestamp += GameCanvas.idleMovementInterval;
+	var hideMovement = this.createIdleMovement(regionIdx + 10, nextTimestamp);
+
+	if(waitPlaceholder && showMovement && hideMovement){
+		this.wormPathQueue.enqueue(waitPlaceholder);
+		this.wormPathQueue.enqueue(showMovement);
+		this.wormPathQueue.enqueue(hideMovement);	
+	}
+};
+
+GameCanvas.prototype.createIdleMovement = function(regionIdx, timestamp, noMove){
+	if(noMove){
+		return new IdleMovement(null, null, null, timestamp);
+	}
+
+	var x, y; //normalised x and y (0,1)
+	if(regionIdx < 10){
+		//in canvas region: 0,1,2,3
+		switch(regionIdx){
+			case 0:
+			x=0.5; y=0.1; 
+			break;
+			case 1:
+			x=0.9; y=0.5;
+			break;
+			case 2:
+			x=0.5; y=0.9;
+			break;
+			case 3:
+			x=0.1; y=0.5;
+			break;
+		}
+	}else{
+		//out of canvas region: 10,11,12,13
+		switch(regionIdx%10){
+			case 0:
+			x=1.2; y=-0.2; 
+			break;
+			case 1:
+			x=1.2; y=1.2;
+			break;
+			case 2:
+			x=-0.2; y=1.2;
+			break;
+			case 3:
+			x=-0.2; y=-0.2;
+			break;
+		}
+
+	}
+
+	if(x!==undefined && y!==undefined){
+		return new IdleMovement(regionIdx, x*this.width(), y*this.height(), timestamp);
+	}
+
+	return null;
+};
 
 GameCanvas.prototype._init = function() {
 
@@ -409,9 +487,8 @@ var Worm = Class([Observable], {
 		var tailPart = this.bodyParts[this.bodyParts.length - 1];
 		//var newPart = new BodyPart(tailPart.x, tailPart.y, this.colorSet, Worm.STYLE.NONE);
 
-		//TOFIX: also duplicate movementQueue
-		var newPart = tailPart.duplicate();
-
+		//also clone movementQueue
+		var newPart = tailPart.clone();
 		this.bodyParts.push(newPart);
 	},
 	getHeadPart: function() {
@@ -441,23 +518,27 @@ var Worm = Class([Observable], {
 		for (var i = 0; i < this.bodyParts.length; i++) {
 			var eachBodyPart = this.bodyParts[i];
 			var movementQueue = eachBodyPart.movementQueue;
-
+			// console.log('before: ' + movementQueue.getLength());
 
 			//0 is the earliest
-			for (var j = 0; j < movementQueue.length; j++) {
-				if (now > movementQueue[j].timestamp) {
+			while(movementQueue.getLength() >0){
+				var eachMovement = movementQueue.peek();
+				if (now > eachMovement.timestamp) {
 					
 					//dequeue it
-					var movement = movementQueue.splice(j, 1);
+					eachMovement = movementQueue.dequeue();
 					//do the movement
-					eachBodyPart.moveTowards(movement[0].targetX, movement[0].targetY);
+					eachBodyPart.moveTowards(eachMovement.targetX, eachMovement.targetY);
 
 				} else {
 					//if the earlier one is not time yet, any items later wont be time yet either
+					//console.log(now + ' ' + eachMovement.timestamp);
 					break;
 				}
 				
 			}
+
+			// console.log('after: ' + movementQueue.getLength());
 
 			movingCount += eachBodyPart.isMoving();
 		}
@@ -487,7 +568,7 @@ var Worm = Class([Observable], {
 		for (var i = 0; i < this.bodyParts.length; i++) {
 			//queue movement with delay
 			var fireTimestamp = now + this.reactionTime * i;
-			this.bodyParts[i].movementQueue.push(new Movement(targetX, targetY, fireTimestamp));
+			this.bodyParts[i].movementQueue.enqueue(new Movement(targetX, targetY, fireTimestamp));
 		}
 		//console.log('before:' +this.bodyParts[0].movementQueue.length + ' ' + this.bodyParts[this.bodyParts.length-1].movementQueue.length);
 
@@ -495,14 +576,23 @@ var Worm = Class([Observable], {
 
 });
 
+
 var Movement = function(targetX, targetY, fireTimestamp) {
 	this.targetX = targetX;
 	this.targetY = targetY;
 	this.timestamp = fireTimestamp;
 };
 
-Movement.prototype.duplicate = function(){
-	return new Movement(this.targetX, this.targetY, this.fireTimestamp);
+var IdleMovement = function(region, targetX, targetY, fireTimestamp){
+	Movement.call(this,targetX, targetY, fireTimestamp);
+
+	this.region = region;
+};
+IdleMovement.prototype = new Movement();
+IdleMovement.prototype.constructor = IdleMovement;
+
+Movement.prototype.clone = function(){
+	return new Movement(this.targetX, this.targetY, this.timestamp);
 }
 
 var BodyPart = function(x, y, colorSet, faceStyle) {
@@ -513,17 +603,16 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 	this.faceStyle = faceStyle; //none, face, xmas
 	this.decorImg = null;
 
-	this.movementQueue = [];
+	this.movementQueue = new Queue();
 
 	this.velocityX = 0;
 	this.velocityY = 0;
 	this.direction = 0; //North
 
 	this.colorSet = colorSet;
-	this.colors = Configs.colorSets[colorSet];
 
-	this.color = this.colors[Math.floor((Math.random() * 9))]; //random number 0-8
-	this.antennaColor = this.colors[Math.floor((Math.random() * 9))]; //random number 0-8
+	this.color = Configs.colorSets[this.colorSet][Math.floor((Math.random() * 9))]; //random number 0-8
+	this.antennaColor = Configs.colorSets[this.colorSet][Math.floor((Math.random() * 9))]; //random number 0-8
 	this.size = (Math.floor((Math.random() * 11)) + 20); //size: 20 - 30
 
 
@@ -537,16 +626,13 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 	}
 };
 
-BodyPart.prototype.duplicate = function(){
+BodyPart.prototype.clone = function(){
 	var newPart = new BodyPart(this.x, this.y, this.colorSet, this.faceStyle);
 
-
-
-	for(var i=0; i<this.movementQueue; i++){
-		var eachMovement = this.movementQueue[i];
-		newPart.movementQueue.push(eachMovement.duplicate());
+	for(var i=0; i<this.movementQueue.getLength(); i++){
+		var eachMovement = this.movementQueue.peekAt(i);
+		newPart.movementQueue.enqueue(eachMovement.clone());
 	}
-
 	return newPart;
 };
 //static vars
