@@ -54,7 +54,11 @@ $(document).ready(function(){
 	// From native app
 	GlobalFunc = function(x, y) {
 
-		$scope.game.setMouse(x, y);
+		//Dont let mouse interact at IDLE mode
+		if(demoApp.state !== DemoApp.STATE.IDLE){
+			$scope.game.setMouse(x, y);
+		}
+		
 	};
 });
 

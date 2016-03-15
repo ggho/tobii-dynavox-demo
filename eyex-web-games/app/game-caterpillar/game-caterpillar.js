@@ -25,7 +25,7 @@ App.settings = {
 $(document).ready(function() {
 	// Events handler
 	$(window).mousemove(function(e) {
-		if ($scope.game)
+		if ($scope.game && demoApp.state !== DemoApp.STATE.IDLE)
 			$scope.game.setMouse(e.clientX, e.clientY);
 	});
 
@@ -183,13 +183,13 @@ Game.prototype.onEvent = function(evt, sender){
 		case 'stateChange':
 
 	//TOFIX: dont always replay music when state change
-		console.log(evt);
-		var newState = evt.data;
-		this.gameCanvas.reset(newState);
-		break;
-		default:
-		console.log("Undefined raised event: " + evt.event);
-	}
+	console.log(evt);
+	var newState = evt.data;
+	this.gameCanvas.reset(newState);
+	break;
+	default:
+	console.log("Undefined raised event: " + evt.event);
+}
 };
 
 //HERE
@@ -224,7 +224,7 @@ GameCanvas.prototype.reset = function(gameState) {
 		this.gameState = gameState ;
 
 	this.worm;
-	this.wormHide = true; //for idle mode, switching between true and false (hide and show)
+	//this.wormHide = true; //for idle mode, switching between true and false (hide and show)
 	this.wormPathQueue = new Queue();
 
 	this.foods = [];
@@ -257,17 +257,16 @@ GameCanvas.prototype.step = function(time) {
 		this.worm.moveTowards(targetX, targetY);
 	}
 
-	//gen food every 5 s
-	if (this.gameState === DemoApp.STATE.GAME_TARGET) {
-		
-	}
-
 	//TODO: handle different states here
 	switch(this.gameState){
 		case DemoApp.STATE.IDLE:
 		this.stepIdle(time);
 		break;
+		case DemoApp.STATE.POSITIONING:
+
+		break;
 		case DemoApp.STATE.GAME_TARGET:
+		//gen food every 5 s
 		this.stepGameTarget(time);
 		break;
 		default:
@@ -288,8 +287,8 @@ GameCanvas.prototype.stepIdle = function(time){
 		if(curMovement.targetX!=undefined && curMovement.targetY!=undefined)
 			$scope.game.setMouse(curMovement.targetX, curMovement.targetY);
 
-		//only set next Region when the movement is out of canvas 
-		if(curMovement.region !== null && curMovement.region < 10){
+		//only queue movement for each set of movements (wait,show, hide) is out of canvas 
+		if(curMovement.region < 10){
 			nextRegion = (curMovement.region+1)%4;
 
 			//time should be set relative to last item in the queue
@@ -298,6 +297,40 @@ GameCanvas.prototype.stepIdle = function(time){
 		}
 	}
 };
+
+GameCanvas.prototype.stepPositioning = function(time){
+	//check and finish last played idleMovement
+	//and plan according positioning movement next
+
+	
+	var nextMovement = this.wormPathQueue.peek();
+	
+	//HERE REWRITE THIS PART
+
+	if(nextMovement === null){
+		//queue empty, use default
+
+	}else{
+		var ts = nextMovement.timestamp;
+		//worm is currently at WAIT (next movement is IN_MOVE), this means ready for positioning
+		if(nextMovement.getState() === IdleMovement.STATE.IN_MOVE){
+			this._planPositioningMovements(nextMovement.region + 20, ts);
+
+		} else if(nextMovement.getState() === IdleMovement.STATE.WAIT){
+			//worm is currently OUT_MOVE (next movement is WAIT), this means ready for positioning after wait a bit
+			this._planPositioningMovements(nextMovement.region + 20, ts+GameCanvas.idleMovementInterval);
+
+
+		} else if(nextMovement.getState() === IdleMovement.STATE.OUT_MOVE){
+			//if current is IN_MOVE (next is OUT_MOVE), then complete next OUT_MOVE
+			if(nextMovement.targetX!=undefined && nextMovement.targetY!=undefined)
+				$scope.game.setMouse(nextMovement.targetX, nextMovement.targetY);
+		}
+	}
+
+};
+
+
 GameCanvas.prototype.stepGameTarget = function(time){
 	if ((time - this.lastFoodTs) > 5000 && this.foods.length < this.maxFood) {
 		this.createOneFood();
@@ -313,7 +346,7 @@ GameCanvas.prototype._planIdleMovements = function(regionIdx, nextTimestamp){
 		return;
 	}
 
-	var waitPlaceholder = this.createIdleMovement(null, nextTimestamp, true);
+	var waitPlaceholder = this.createIdleMovement((regionIdx +3)%4 +10, nextTimestamp, true);
 
 	//gen random waiting time
 	if(Math.random()<0.5){
@@ -334,9 +367,21 @@ GameCanvas.prototype._planIdleMovements = function(regionIdx, nextTimestamp){
 	}
 };
 
+GameCanvas.prototype._planPositioningMovements = function(regionIdx, nextTimestamp){
+	if(regionIdx < 20){
+		return;
+	}
+
+	for(var i=0; i<3; i++){
+		var positioningMovement = this.createPositioningMovement(regionIdx, i, nextTimestamp);
+		this.wormPathQueue.enqueue(positioningMovement);
+		nextTimestamp += GameCanvas.idleMovementInterval;
+	}
+};
+
 GameCanvas.prototype.createIdleMovement = function(regionIdx, timestamp, noMove){
 	if(noMove){
-		return new IdleMovement(null, null, null, timestamp);
+		return new IdleMovement(regionIdx, null, null, timestamp);
 	}
 
 	var x, y; //normalised x and y (0,1)
@@ -347,13 +392,13 @@ GameCanvas.prototype.createIdleMovement = function(regionIdx, timestamp, noMove)
 			x=0.5; y=0.1; 
 			break;
 			case 1:
-			x=0.9; y=0.5;
+			x=0.95; y=0.5;
 			break;
 			case 2:
 			x=0.5; y=0.9;
 			break;
 			case 3:
-			x=0.1; y=0.5;
+			x=0.05; y=0.5;
 			break;
 		}
 	}else{
@@ -380,6 +425,22 @@ GameCanvas.prototype.createIdleMovement = function(regionIdx, timestamp, noMove)
 	}
 
 	return null;
+};
+
+GameCanvas.prototype.createPositioningMovement = function(regionIdx, positionIdx, timestamp){
+	var x, y;
+	var positions = [
+	[[0.2,0.1], [0.3, -0.1], [0.4, 0.15]], //top position 1, 2,3
+	[[0.9,0.1], [1.1, 0.2], [0.85, 0.3]], //right position 1, 2,3
+	[[0.9,0.9], [0.8, 1.1], [0.7, 0.85]], //bottom position 1, 2,3
+	[[0.1,0.9], [-0.1, 0.8], [0.15, 0.7]] //left position 1, 2,3
+	];
+	
+	x = positions[regionIdx%20][positionIdx][0];
+	y = positions[regionIdx%20][positionIdx][1];
+
+	return new IdleMovement(regionIdx, x*this.width(), y*this.height(), timestamp);
+
 };
 
 GameCanvas.prototype._init = function() {
@@ -583,13 +644,34 @@ var Movement = function(targetX, targetY, fireTimestamp) {
 	this.timestamp = fireTimestamp;
 };
 
-var IdleMovement = function(region, targetX, targetY, fireTimestamp){
-	Movement.call(this,targetX, targetY, fireTimestamp);
 
-	this.region = region;
+/**
+TODO: to be renamed to AutoMovements
+@param region: 0 = top, 1 = right, 2 = bottom, 3 = left;
+			 10 = top-right hidden, 11 = bottom-right hidden, 12 = bottom-left hidden, 13 = top-left hidden
+			 20 = top, 21 = right, 22 = bottom, 23 = left
+			 */
+			 var IdleMovement = function(region, targetX, targetY, fireTimestamp){
+			 	Movement.call(this,targetX, targetY, fireTimestamp);
+
+			 	this.region = region;
+			 };
+			 IdleMovement.prototype = new Movement();
+			 IdleMovement.prototype.constructor = IdleMovement;
+			 IdleMovement.STATE = {
+	IN_MOVE : 'movein', //moving in canvas
+	OUT_MOVE : 'moveout', //moving out of canvas
+	WAIT : 'wait' //waiting out of canvas
 };
-IdleMovement.prototype = new Movement();
-IdleMovement.prototype.constructor = IdleMovement;
+IdleMovement.prototype.getState = function(){
+	if(this.region < 10)
+		return IdleMovement.STATE.MOVE_IN;
+	else if(this.targetX === null && this.targetY === null)
+		return IdleMovement.STATE.WAIT;
+	else
+		return IdleMovement.STATE.MOVE_OUT;
+
+};
 
 Movement.prototype.clone = function(){
 	return new Movement(this.targetX, this.targetY, this.timestamp);
