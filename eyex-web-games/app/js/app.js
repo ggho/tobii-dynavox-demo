@@ -1,15 +1,15 @@
-
+'use strict';
 
 //App level logic
 var DemoApp = Class([Observable],{
 	$const: {
 		STATE: {
-			IDLE: 'idle',
-			ATTENTIVE: 'attentive',
-			POSITIONING: 'positioning',
-			//CALIBRATION: 'calibration',
-			GAME_EXPLORE: 'game-explore',
-			GAME_TARGET: 'game-target',
+			IDLE: 1,
+			ATTENTIVE: 2,
+			POSITIONING: 3,
+			CALIBRATION: 4,
+			GAME_EXPLORE: 5,
+			GAME_TARGET: 6,
 		}
 	},
 	constructor: function(){
@@ -17,7 +17,7 @@ var DemoApp = Class([Observable],{
 
 		this._state = DemoApp.STATE.IDLE;
 
-			$('#info-state').text(this._state);
+		$('#info-state').text('').text(this._state);
 	},
 	// Getter/Setter 
 	state: {
@@ -34,12 +34,45 @@ var DemoApp = Class([Observable],{
 			//debug
 			$('#info-state').text(this._state);
 		}
+	},
+	nextState: function(){
+		if(this.state === DemoApp.STATE.IDLE)
+			this.state = DemoApp.STATE.ATTENTIVE;
+		else if(this.state === DemoApp.STATE.ATTENTIVE)
+			this.state = DemoApp.STATE.POSITIONING;
+		else if(this.state === DemoApp.STATE.POSITIONING)
+			this.state = DemoApp.STATE.GAME_EXPLORE;
+		else if(this.state === DemoApp.STATE.GAME_EXPLORE)
+			this.state = DemoApp.STATE.GAME_TARGET;
+		else if(this.state === DemoApp.STATE.GAME_TARGET)
+			this.state = DemoApp.STATE.IDLE;
 	}
 });
 
 var demoApp;
-var GlobalFunc; //to be called by outside
 var $scope = {};
+var nativeApp;
+
+//to be called by outside
+var callWeb = function(event, data) {
+
+	if(event == 'fixationPoint'){
+		if(demoApp.state !== DemoApp.STATE.GAME_EXPLORE && demoApp.state !== DemoApp.STATE.GAME_TARGET)
+			return; //do nothing
+
+		$scope.game.setMouse(data.x, data.y);
+		
+	}else if(event == 'setState'){
+		console.log("setState: " + data.state);
+		demoApp.state = data.state;
+	}else{
+		console.log('Unrecognized call: ' + event);
+
+	}
+
+
+
+};
 
 $(document).ready(function(){
 	demoApp = new DemoApp();
@@ -52,14 +85,26 @@ $(document).ready(function(){
 	$scope.game.run();
 
 	// From native app
-	GlobalFunc = function(x, y) {
 
-		//Dont let mouse interact at IDLE mode
-		if(demoApp.state !== DemoApp.STATE.IDLE){
-			$scope.game.setMouse(x, y);
+
+	// Get native object
+	nativeApp = window.native || null;
+
+	if (nativeApp) {
+		nativeApp.callNative("Hello native app. blah.");
+		console.log("This is Native app");
+	} else {
+		console.log("This is NO Native app");
+	}
+
+	//For standalone demo/ debug purpose 
+	$(window).keydown(function(event) {
+		if(event.which === 32 || event.which === 13 || event.which === 13){ //SPACE: 32, ENTER: 13, RIGHT-> : 39
+			demoApp.nextState();
+
+			// event.preventDeault();
 		}
-		
-	};
+	});
 });
 
 

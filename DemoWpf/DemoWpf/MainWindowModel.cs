@@ -12,8 +12,14 @@ namespace UserPresenceWpf
     using Tobii.EyeX.Framework;
     using Tobii.EyeX.Client;
 
+    using Awesomium.Core;
+    using Awesomium.Windows.Controls;
+    using System.IO;
+
     using System.Threading;
     using System.Threading.Tasks;
+
+    using System.Web.Script.Serialization; //for JSON serialization
 
     /// <summary>
     /// The MainWindowModel retrieves the UserPresence state from the WpfEyeXHost,
@@ -22,6 +28,16 @@ namespace UserPresenceWpf
     /// </summary>
     public class MainWindowModel : INotifyPropertyChanged, IDisposable
     {
+        public enum AppStates
+        {
+            Idle = 1,
+            Attentive = 2,
+            Positioning = 3,
+            Calibration = 4,
+            GameExplore = 5,
+            GameTarget = 6
+        }
+
         private readonly WpfEyeXHost _eyeXHost;
         private string _imageSource;
         private bool _isUserPresent;
@@ -34,8 +50,12 @@ namespace UserPresenceWpf
         private AsyncData _calibrationAsyncData;
         private bool _isCalibrating;
 
-        private Point _fixationPoint; 
+        private Point _fixationPoint;
 
+        private AppStates _appState;
+        private WebControl _web;
+
+        private JavaScriptSerializer _serializer;
 
         public MainWindowModel()
         {
@@ -45,7 +65,11 @@ namespace UserPresenceWpf
 
             IsUserDelayedPresent = false;
             _isCalibrating = false;
-            //_delayedTaskTokenSource = new CancellationTokenSource();  
+
+            AppState = AppStates.Idle;
+
+
+            _serializer = new JavaScriptSerializer();
 
             // Create and start the WpfEyeXHost. Starting the host means
             // that it will connect to the EyeX Engine and be ready to 
@@ -80,14 +104,6 @@ namespace UserPresenceWpf
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public WpfEyeXHost EyeXHost
-        {
-            get { return _eyeXHost; }
-        }
 
         /// <summary>
         /// A path to an image corresponding to the current UserPresence state.
@@ -127,10 +143,22 @@ namespace UserPresenceWpf
             get { return _isUserDelayedPresent; }
             private set
             {
-                if (_isUserDelayedPresent == value)
-                    return;
+                //maybe not?
+                //if (_isUserDelayedPresent == value)
+                    //return;
 
                 _isUserDelayedPresent = value;
+
+
+                if (_isUserDelayedPresent)
+                {
+                    if (AppState < AppStates.Positioning)
+                        AppState = AppState + 1;
+                }
+                else
+                {
+                    AppState = AppStates.Idle;
+                }
 
                 OnPropertyChanged("IsUserDelayedPresent");
             }
@@ -188,7 +216,100 @@ namespace UserPresenceWpf
             set
             {
                 _fixationPoint = value;
+
+                Point clientCorrdinate = _web.PointFromScreen(_fixationPoint);
+                //forward point to wecControl
+                CallWeb("fixationPoint", new { x = clientCorrdinate.X, y = clientCorrdinate.Y });
+
                 OnPropertyChanged("FixationPoint");
+            }
+        }
+
+        public AppStates AppState
+        {
+            get { return _appState; }
+            set
+            {
+                if (value == _appState)
+                    return;
+
+                _appState = value;
+                CallWeb("setState", new { state = _appState });
+
+                if (_appState == AppStates.Attentive){
+                    //ensure user presense for x more seconds then move on to next state
+                    SetDelayedUserPresentAsync(true); 
+                }
+                else if (_appState == AppStates.Positioning)
+                {
+                    //wait for Web callback of positioning done
+
+                    //otherwise: do a backup plan to force to calibration (e.g. 30s timeout)
+                    Task.Delay(20000).ContinueWith(_ => 
+                    {
+                        RunOnMainThread(() =>
+                        {
+                            if (AppState < AppStates.Calibration && AppState != AppStates.Idle)
+                                AppState = AppStates.Calibration;
+                        });
+                    });
+                }
+                else if (_appState == AppStates.Calibration)
+                {
+                    _eyeXHost.LaunchGuestCalibration(CalibrationHandler);
+                    CancelDelayedTask();
+
+                    //move on next state (or wait 2s?)
+                    AppState = AppStates.GameExplore;
+                }
+                else if (_appState == AppStates.GameExplore)
+                {
+                    Task.Delay(30000).ContinueWith(_ => 
+                    {
+                        RunOnMainThread(() =>
+                        {
+                            if (AppState == AppStates.GameExplore)
+                                AppState = AppStates.GameTarget;
+                        });
+                    });
+                }
+
+                
+                OnPropertyChanged("AppState");
+            }
+        }
+
+        public void InitWebControl(WebControl wc, string filepath)
+        {
+            // Setup web control
+            _web = wc;
+            _web.Source = new Uri(new FileInfo(filepath).FullName);
+
+            // porting web console to native console
+            _web.ConsoleMessage += (sender1, args) => Console.Out.WriteLine("[JS]{1}:{2} {0}", args.Message, args.Source, args.LineNumber);
+            _web.ShowContextMenu += (sender1, args) => args.Handled = true;
+
+            //WebControl.DocumentReady += (sender1, arg) => WebControl.ExecuteJavascript(string.Format("alert('Gigi says hi');"));
+
+            //Register global function to be called by Web
+            using (JSObject webApp = _web.CreateGlobalJavascriptObject("native")) //create native object in WebApp global scope, i.e. window.native
+            {
+                webApp.BindAsync("callNative", (sender1, args) =>
+                {
+                    Console.Out.WriteLine((string)args.Arguments[0]);
+
+                    //_web.ExecuteJavascript(string.Format("alert({0});", "Gigi is calling"));
+                    //Execute.OnUIThreadAsync(() => _web.ExecuteJavascript(string.Format("mymethod({0});", 60)));
+                });
+            }
+        }
+
+        public void CallWeb(string eventName, object data)
+        {
+            if (_web != null && _web.IsDocumentReady)
+            {
+                var jsonData = _serializer.Serialize(data);
+                _web.ExecuteJavascript(string.Format("callWeb('" + eventName + "', {0});", jsonData));
             }
         }
 
@@ -222,6 +343,7 @@ namespace UserPresenceWpf
             bool isUserPresent = value.IsValid && value.Value == UserPresence.Present;
 
             //add delay , only call when present for 2s
+            
             SetDelayedUserPresentAsync(isUserPresent);
 
             // State-changed events are received on a background thread.
@@ -276,7 +398,7 @@ namespace UserPresenceWpf
         private void EyeXHost_EyeTrackingDeviceStatusChanged(object sender, EngineStateValue<EyeTrackingDeviceStatus> value)
         {
             Console.WriteLine(" Tracking Status changed: " + value.IsValid + " " + value.Value);
-            //TEMP workaround to track when calibrating is done: first tracking deflag calibrating state
+            //TEMP workaround to track when calibrating is done: first 'tracking' state deflags calibrating state
             if (_isCalibrating && value.IsValid && value.Value == EyeTrackingDeviceStatus.Tracking)
             {
                 _isCalibrating = false;

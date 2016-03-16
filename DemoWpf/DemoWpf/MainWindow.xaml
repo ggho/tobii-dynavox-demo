@@ -7,8 +7,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:utilities="clr-namespace:UserPresenceWpf.Utilities"
         xmlns:osm="http://schemas.awesomium.com/winfx"
-        Title="User Presence WPF Sample"  Height="700" Width="800" WindowStartupLocation="CenterScreen" >
-    <!--WindowState="Maximized" WindowStyle="None"-->
+        Title="User Presence WPF Sample"  
+        WindowState="Maximized" WindowStyle="None">
+    <!--Height="700" Width="800" WindowStartupLocation="CenterScreen" >-->
 
     <Window.Resources>
         <utilities:YesNoConverter x:Key="YesNoConverter" />
@@ -39,10 +40,13 @@
             </Grid.ColumnDefinitions>
 
             <Label Grid.Row="0" Grid.Column="0" Content="Is user present?"/>
-            <Label Grid.Row="0" Grid.Column="1" FontWeight="Bold" Content="{Binding IsUserPresent, Converter={StaticResource YesNoConverter}}"/>
+            <Label Grid.Row="0" Grid.Column="1" FontWeight="Bold" Content="{Binding IsUserPresent, Converter={StaticResource YesNoConverter}}" Margin="0,0,557,0"/>
 
-            <Label Grid.Row="1" Grid.Column="0" Content="Is user present (delayed)?"/>
-            <Label Grid.Row="1" Grid.Column="1" FontWeight="Bold" Content="{Binding IsUserDelayedPresent, Converter={StaticResource YesNoConverter}}"/>
+            <Label Grid.Row="0" Grid.Column="1" Content="Is user present (delayed)?" Margin="160,0,348,0"/>
+            <Label Grid.Row="0" Grid.Column="1" FontWeight="Bold" Content="{Binding IsUserDelayedPresent, Converter={StaticResource YesNoConverter}}" Margin="320,0,206,0"/>
+
+            <Label Grid.Row="1" Grid.Column="0" Content="App State:"/>
+            <Label Grid.Row="1" Grid.Column="1" FontWeight="Bold" Content="{Binding AppState}"/>
 
             <!--<Label Grid.Row="2" Grid.Column="0" Content="Is tracking gaze?"/>
             <StackPanel Grid.Row="2" Grid.Column="1">
@@ -56,8 +60,8 @@
 
         <osm:WebControl Grid.Row="1"
             Name="WebControl"/>
-            <!--Source="http://127.0.0.1:8080/#/" />-->
-                        
+        <!--Source="http://127.0.0.1:8080/#/" />-->
+
         <!--<Image Grid.Row="1" Source="{Binding ImageSource}" />-->
         <!--<Label Grid.Row="2" Content="Try playing peek-a-boo with this guy and see what happens..."/>-->
 

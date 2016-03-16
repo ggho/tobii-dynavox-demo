@@ -45,10 +45,7 @@ $(document).ready(function() {
 		console.log('focusing');
 		if ($scope.game)
 			$scope.game.resume();
-	});
-
-
-	
+	});	
 
 });
 
