@@ -96,7 +96,7 @@ Game.prototype.setMouse = function(mouseX, mouseY) {
 	this.mouseY = mouseY;
 	this.mouseTs = new Date().getTime();
 
-
+	//TODO: remove this
 	this.startMusic();
 
 	//temp for debug
@@ -226,6 +226,7 @@ GameCanvas.prototype.reset = function(gameState) {
 	this.worm;
 	//this.wormHide = true; //for idle mode, switching between true and false (hide and show)
 	this.wormPathQueue = new Queue();
+	this.isAttentivePlanned = false;
 
 	this.foods = [];
 	this.lastFoodTs = 0;
@@ -261,6 +262,9 @@ GameCanvas.prototype.step = function(time) {
 	switch(this.gameState){
 		case DemoApp.STATE.IDLE:
 		this.stepIdle(time);
+		break;
+		case DemoApp.STATE.ATTENTIVE:
+		this.stepAttentive(time);
 		break;
 		case DemoApp.STATE.POSITIONING:
 
@@ -298,34 +302,52 @@ GameCanvas.prototype.stepIdle = function(time){
 	}
 };
 
-GameCanvas.prototype.stepPositioning = function(time){
+GameCanvas.prototype.stepAttentive = function(time){
 	//check and finish last played idleMovement
 	//and plan according positioning movement next
 
-	
 	var nextMovement = this.wormPathQueue.peek();
-	
-	//HERE REWRITE THIS PART
-
-	if(nextMovement === null){
-		//queue empty, use default
-
-	}else{
-		var ts = nextMovement.timestamp;
-		//worm is currently at WAIT (next movement is IN_MOVE), this means ready for positioning
-		if(nextMovement.getState() === IdleMovement.STATE.IN_MOVE){
-			this._planPositioningMovements(nextMovement.region + 20, ts);
-
-		} else if(nextMovement.getState() === IdleMovement.STATE.WAIT){
-			//worm is currently OUT_MOVE (next movement is WAIT), this means ready for positioning after wait a bit
-			this._planPositioningMovements(nextMovement.region + 20, ts+GameCanvas.idleMovementInterval);
+	if(this.isAttentivePlanned){
+		//TOFIX: freeze the movement of body 
 
 
-		} else if(nextMovement.getState() === IdleMovement.STATE.OUT_MOVE){
-			//if current is IN_MOVE (next is OUT_MOVE), then complete next OUT_MOVE
-			if(nextMovement.targetX!=undefined && nextMovement.targetY!=undefined)
-				$scope.game.setMouse(nextMovement.targetX, nextMovement.targetY);
+		//then just execute the queue
+		if(nextMovement && time > nextMovement.timestamp){
+			nextMovement = this.wormPathQueue.dequeue();
+			$scope.game.setMouse(nextMovement.targetX, nextMovement.targetY);
 		}
+	}else{
+		//planPositioningMoves
+		var region = 20, ts = time+GameCanvas.idleMovementInterval;
+		if(nextMovement !== null){
+			ts = nextMovement.timestamp;
+
+			switch(nextMovement.getState()){
+				case IdleMovement.STATE.IN_MOVE:
+				//worm is currently at WAIT (next movement is IN_MOVE), this means ready for positioning
+				region = (nextMovement.region)%4 + 20; //region idx for positioning
+				break;
+
+				case IdleMovement.STATE.WAIT:
+				//worm is currently OUT_MOVE (next movement is WAIT), this means ready for positioning after wait a bit
+				region = (nextMovement.region + 1)%4 + 20;
+				ts += GameCanvas.idleMovementInterval;
+				break;
+
+				case IdleMovement.STATE.OUT_MOVE:
+				//if current is IN_MOVE (next is OUT_MOVE), then complete next OUT_MOVE
+				region = (nextMovement.region + 1)%4 + 20;
+				ts += GameCanvas.idleMovementInterval;
+
+				//TODO: push it to plan queue?
+				if(nextMovement.targetX!=undefined && nextMovement.targetY!=undefined)
+					$scope.game.setMouse(nextMovement.targetX, nextMovement.targetY);
+			}
+		}
+
+		this.wormPathQueue.clear();
+		this.isAttentivePlanned = true;
+		this._planAttentiveMovements(region, ts);
 	}
 
 };
@@ -367,14 +389,14 @@ GameCanvas.prototype._planIdleMovements = function(regionIdx, nextTimestamp){
 	}
 };
 
-GameCanvas.prototype._planPositioningMovements = function(regionIdx, nextTimestamp){
+GameCanvas.prototype._planAttentiveMovements = function(regionIdx, nextTimestamp){
 	if(regionIdx < 20){
 		return;
 	}
 
 	for(var i=0; i<3; i++){
-		var positioningMovement = this.createPositioningMovement(regionIdx, i, nextTimestamp);
-		this.wormPathQueue.enqueue(positioningMovement);
+		var movement = this.createAttentiveMovement(regionIdx, i, nextTimestamp);
+		this.wormPathQueue.enqueue(movement);
 		nextTimestamp += GameCanvas.idleMovementInterval;
 	}
 };
@@ -427,7 +449,7 @@ GameCanvas.prototype.createIdleMovement = function(regionIdx, timestamp, noMove)
 	return null;
 };
 
-GameCanvas.prototype.createPositioningMovement = function(regionIdx, positionIdx, timestamp){
+GameCanvas.prototype.createAttentiveMovement = function(regionIdx, positionIdx, timestamp){
 	var x, y;
 	var positions = [
 	[[0.2,0.1], [0.3, -0.1], [0.4, 0.15]], //top position 1, 2,3
@@ -545,6 +567,8 @@ var Worm = Class([Observable], {
 
 	},
 	grow: function() {
+		//TODO: GROW the new part with a more catchy animation, 
+
 		var tailPart = this.bodyParts[this.bodyParts.length - 1];
 		//var newPart = new BodyPart(tailPart.x, tailPart.y, this.colorSet, Worm.STYLE.NONE);
 

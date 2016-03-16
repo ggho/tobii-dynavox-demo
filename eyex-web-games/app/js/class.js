@@ -47,23 +47,27 @@ Queue.prototype.peek = function(){
 		return this._items[0];
 	else
 		return null;
-}
+};
 Queue.prototype.peekAt = function(idx){
 	if(idx < this._items.length)
 		return this._items[idx];
 	else
 		return null;
-}
+};
 Queue.prototype.peekLast = function(){
 	if(this._items.length > 0)
 		return this._items[this._items.length-1];
 	else
 		return null;
-}
+};
+Queue.prototype.clear = function(){
+	this._items.splice(0, this._items.length);
+
+};
 Queue.prototype.isEmpty = function(){
 	return this._items.length > 0 ? false : true;
-}
+};
 Queue.prototype.getLength = function(){
 	return this._items.length;
-}
+};
 
