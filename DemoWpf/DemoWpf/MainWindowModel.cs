@@ -37,6 +37,11 @@ namespace UserPresenceWpf
             GameExplore = 5,
             GameTarget = 6
         }
+        public struct BothEyePosition
+        {
+            public EyePosition Left;
+            public EyePosition Right;
+        }
 
         private readonly WpfEyeXHost _eyeXHost;
         private string _imageSource;
@@ -51,6 +56,8 @@ namespace UserPresenceWpf
         private bool _isCalibrating;
 
         private Point _fixationPoint;
+        private EyePosition _leftEyePositionNormalized;
+        private EyePosition _rightEyePositionNormalized;
 
         private AppStates _appState;
         private WebControl _web;
@@ -84,8 +91,10 @@ namespace UserPresenceWpf
             _eyeXHost.GazeTrackingChanged += EyeXHost_GazeTrackingChanged;
             _eyeXHost.EyeTrackingDeviceStatusChanged += EyeXHost_EyeTrackingDeviceStatusChanged;
 
+
             // streams
             _eyeXHost.CreateFixationDataStream(FixationDataMode.Slow).Next += EyeXHost_FixationDataStream;
+            _eyeXHost.CreateEyePositionDataStream().Next += EyeXHost_EyePositionDataStream;
                    
 
             // Start the EyeX host.
@@ -225,6 +234,35 @@ namespace UserPresenceWpf
                 }
 
                 OnPropertyChanged("FixationPoint");
+            }
+        }
+
+        public EyePosition LeftEyePositionNormalized
+        {
+            get { return _leftEyePositionNormalized; }
+            set
+            {
+                _leftEyePositionNormalized = value;
+            }
+        }
+
+        public EyePosition RightEyePositionNormalized
+        {
+            get { return _rightEyePositionNormalized; }
+            set
+            {
+                _rightEyePositionNormalized = value;
+            }
+        }
+
+        public EyePosition CombinedEyePositionNormalized
+        {
+            get
+            {
+                //if both left and right are valid , return middle point
+                //else return either valid one
+                //else return null
+                return null;
             }
         }
 
@@ -416,6 +454,17 @@ namespace UserPresenceWpf
             RunOnMainThread(() =>
             {
                 FixationPoint = fixationPoint;
+            });
+        }
+
+        private void EyeXHost_EyePositionDataStream(object sender, EyePositionEventArgs args)
+        {
+
+            RunOnMainThread(() =>
+            {
+                LeftEyePositionNormalized = args.LeftEyeNormalized;
+                RightEyePositionNormalized = args.RightEyeNormalized;
+                
             });
         }
 
