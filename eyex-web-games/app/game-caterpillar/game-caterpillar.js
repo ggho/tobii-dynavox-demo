@@ -704,8 +704,10 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 	// this.oldY = y;
 	this.x = x;
 	this.y = y;
+	this.z = 0;
 	this.faceStyle = faceStyle; //none, face, xmas
 	this.decorImg = null;
+	this.isLock = false; //lock to current x, y, z, and wont change any position
 
 	this.movementQueue = new Queue();
 
@@ -788,18 +790,23 @@ BodyPart.prototype.isMoving = function(){
 	return this.velocityX !== 0 && this.velocityY !== 0;
 }
 
+BodyPart.prototype.perceiveSize = function(actualSize){
+	//simplified perceivedSize
+	return actualSize * (1+this.z/100);
+}
+
 
 BodyPart.prototype.draw = function(ctx) {
 	ctx.fillStyle = this.color;
 
 	if (this.faceStyle === 'none') {
-		ctx.globalAlpha = 0.7;
+		ctx.globalAlpha = 0.9;
 	} else {
 		ctx.globalAlpha = 1;
 	}
 
 	ctx.beginPath();
-	ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
+	ctx.arc(this.x, this.y, this.perceiveSize(this.size), 0, 2 * Math.PI, false);
 	ctx.fill();
 
 
@@ -807,18 +814,18 @@ BodyPart.prototype.draw = function(ctx) {
 		//2 dots as eyes
 		ctx.fillStyle = "#000";
 		ctx.beginPath();
-		ctx.arc(this.x - 8, this.y, 4, 0, 2 * Math.PI, false);
+		ctx.arc(this.x - 8, this.y, this.perceiveSize(4), 0, 2 * Math.PI, false);
 		ctx.fill();
 		ctx.beginPath();
-		ctx.arc(this.x + 8, this.y, 4, 0, 2 * Math.PI, false);
+		ctx.arc(this.x + 8, this.y, this.perceiveSize(4), 0, 2 * Math.PI, false);
 		ctx.closePath();
 		ctx.fill();
 
 		//right antenna
-		var antenna1StartX = this.x + 10;
-		var antenna1StartY = this.y - this.size + 4;
-		var antenna1EndX = antenna1StartX + 10;
-		var antenna1EndY = antenna1StartY - 20;
+		var antenna1StartX = this.x + this.perceiveSize(10);
+		var antenna1StartY = this.y + this.perceiveSize(4 - this.size) ;
+		var antenna1EndX = antenna1StartX + this.perceiveSize(10);
+		var antenna1EndY = antenna1StartY - this.perceiveSize(20);
 		ctx.strokeStyle = "#FFF";
 		ctx.lineWidth = 3;
 
