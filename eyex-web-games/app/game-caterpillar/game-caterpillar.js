@@ -179,20 +179,14 @@ Game.prototype.onEvent = function(evt, sender){
 	switch (evt.event) {
 		case 'stateChange':
 
-	//TOFIX: dont always replay music when state change
-	console.log(evt);
-	var newState = evt.data;
-	this.gameCanvas.reset(newState);
-	break;
-	default:
-	console.log("Undefined raised event: " + evt.event);
-}
-};
-
-//HERE
-Game.prototype.startPositioningMode = function(){
-
-
+		//TOFIX: dont always replay music when state change
+		console.log(evt);
+		var newState = evt.data;
+		this.gameCanvas.reset(newState);
+		break;
+		default:
+		console.log("Undefined raised event: " + evt.event);
+	}
 };
 
 /*
@@ -220,7 +214,6 @@ GameCanvas.prototype.reset = function(gameState) {
 	if(gameState)
 		this.gameState = gameState ;
 
-	this.worm;
 	//this.wormHide = true; //for idle mode, switching between true and false (hide and show)
 	this.wormPathQueue = new Queue();
 	this.isAttentivePlanned = false;
@@ -228,8 +221,15 @@ GameCanvas.prototype.reset = function(gameState) {
 	this.foods = [];
 	this.lastFoodTs = 0;
 	this.maxFood = 10;
+	this.perspective = 100; //TO BE USED
 
-	this._init();
+	
+	//force set canvas width and height
+	this.updateDimension();
+	this.clearCanvas();
+
+	if(this.worm === undefined || this.gameState === DemoApp.STATE.GAME_TARGET)
+		this.createWorm();
 };
 
 GameCanvas.prototype.draw = function() {
@@ -267,7 +267,6 @@ GameCanvas.prototype.step = function(time) {
 
 		break;
 		case DemoApp.STATE.GAME_TARGET:
-		//gen food every 5 s
 		this.stepGameTarget(time);
 		break;
 		default:
@@ -349,9 +348,13 @@ GameCanvas.prototype.stepAttentive = function(time){
 
 };
 
+GameCanvas.prototype.stepPositioning = function(time){
+
+};
 
 GameCanvas.prototype.stepGameTarget = function(time){
-	if ((time - this.lastFoodTs) > 5000 && this.foods.length < this.maxFood) {
+	//gen food every 5 s
+	if ((time - this.lastFoodTs) > 20000 && this.foods.length < this.maxFood) {
 		this.createOneFood();
 		this.lastFoodTs = time;
 	}
@@ -462,14 +465,9 @@ GameCanvas.prototype.createAttentiveMovement = function(regionIdx, positionIdx, 
 
 };
 
-GameCanvas.prototype._init = function() {
+// GameCanvas.prototype._init = function() {
 
-	//force set canvas width and height
-	this.updateDimension();
-	this.clearCanvas();
-
-	this.createWorm();
-};
+// };
 
 
 GameCanvas.prototype.onEvent = function(evt, sender){
@@ -492,6 +490,9 @@ GameCanvas.prototype.onWormMove = function(evt) {
 
 			//grow
 			this.worm.grow();
+
+			//create one new food
+			this.createOneFood();
 		}
 	}
 };
@@ -669,17 +670,17 @@ var Movement = function(targetX, targetY, fireTimestamp) {
 /**
 TODO: to be renamed to AutoMovements
 @param region: 0 = top, 1 = right, 2 = bottom, 3 = left;
-			 10 = top-right hidden, 11 = bottom-right hidden, 12 = bottom-left hidden, 13 = top-left hidden
-			 20 = top, 21 = right, 22 = bottom, 23 = left
-			 */
-			 var IdleMovement = function(region, targetX, targetY, fireTimestamp){
-			 	Movement.call(this,targetX, targetY, fireTimestamp);
+10 = top-right hidden, 11 = bottom-right hidden, 12 = bottom-left hidden, 13 = top-left hidden
+20 = top, 21 = right, 22 = bottom, 23 = left
+*/
+var IdleMovement = function(region, targetX, targetY, fireTimestamp){
+	Movement.call(this,targetX, targetY, fireTimestamp);
 
-			 	this.region = region;
-			 };
-			 IdleMovement.prototype = new Movement();
-			 IdleMovement.prototype.constructor = IdleMovement;
-			 IdleMovement.STATE = {
+	this.region = region;
+};
+IdleMovement.prototype = new Movement();
+IdleMovement.prototype.constructor = IdleMovement;
+IdleMovement.STATE = {
 	IN_MOVE : 'movein', //moving in canvas
 	OUT_MOVE : 'moveout', //moving out of canvas
 	WAIT : 'wait' //waiting out of canvas
@@ -717,7 +718,7 @@ var BodyPart = function(x, y, colorSet, faceStyle) {
 	this.color = Configs.colorSets[this.colorSet][Math.floor((Math.random() * 9))]; //random number 0-8
 	this.antennaColor = Configs.colorSets[this.colorSet][Math.floor((Math.random() * 9))]; //random number 0-8
 	this.size = (Math.floor((Math.random() * 11)) + 20); //size: 20 - 30
-
+	
 
 	if (this.faceStyle === 'xmas') {
 		this.decorImg = new Image();
@@ -874,16 +875,24 @@ BodyPart.prototype.draw = function(ctx) {
 var Food = Class({
 	$const: {
 		TYPE: {
-			BEAN: 'bean',
-			APPLE: 'apple',
-			LEAF: 'leaf',
-			FLOWER: 'flower'
+			BEAN: 'bean', //0.3
+			LEAF: 'leaf', //0.3
+			APPLE: 'apple', //0.3
+			FLOWER: 'flower' //rare: 0.1 chance
 			//TODO: split different types into sub class?
 		}
 	},
 	constructor: function(ctx) {
 		//random type of food
-		this.type = Food.TYPE.BEAN;
+		var foodRand = Math.random();
+		if(foodRand < 0.1)
+			this.type = Food.TYPE.FLOWER;
+		else if(foodRand < 0.4)
+			this.type = Food.TYPE.APPLE;
+		else if(foodRand < 0.7)
+			this.type = Food.TYPE.LEAF;
+		else 
+			this.type = Food.TYPE.BEAN;
 
 		//random lcoation
 		this.x = Math.random() * ctx.canvas.width;
@@ -897,11 +906,28 @@ var Food = Class({
 
 		switch (this.type) {
 			case Food.TYPE.BEAN:
-			ctx.fillStyle = "#F00"
+			ctx.fillStyle = "#AD593E"
 			ctx.beginPath();
 			ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
 			ctx.fill();
-
+			break;
+			case Food.TYPE.LEAF:
+			ctx.fillStyle = "#5AAD3E"
+			ctx.beginPath();
+			ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
+			ctx.fill();
+			break;
+			case Food.TYPE.APPLE:
+			ctx.fillStyle = "#ED280E"
+			ctx.beginPath();
+			ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
+			ctx.fill();
+			break;
+			case Food.TYPE.FLOWER:
+			ctx.fillStyle = "#913EAD"
+			ctx.beginPath();
+			ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI, false);
+			ctx.fill();
 			break;
 			default:
 

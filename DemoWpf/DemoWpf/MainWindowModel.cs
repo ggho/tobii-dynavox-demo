@@ -217,9 +217,12 @@ namespace UserPresenceWpf
             {
                 _fixationPoint = value;
 
-                Point clientCorrdinate = _web.PointFromScreen(_fixationPoint);
-                //forward point to wecControl
-                CallWeb("fixationPoint", new { x = clientCorrdinate.X, y = clientCorrdinate.Y });
+                //forward point to wecControl during Game states
+                if (AppState == AppStates.GameExplore || AppState == AppStates.GameTarget)
+                {
+                    Point clientCorrdinate = _web.PointFromScreen(_fixationPoint);
+                    CallWeb("fixationPoint", new { x = clientCorrdinate.X, y = clientCorrdinate.Y });
+                }
 
                 OnPropertyChanged("FixationPoint");
             }

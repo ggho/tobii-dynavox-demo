@@ -15,7 +15,8 @@ var DemoApp = Class([Observable],{
 	constructor: function(){
 		Observable.call(this); //call parent's constructor
 
-		this._state = DemoApp.STATE.IDLE;
+		// this._state = DemoApp.STATE.IDLE;
+		this._state = DemoApp.STATE.GAME_TARGET; //dev mode
 
 		$('#info-state').text('').text(this._state);
 	},
