@@ -53,6 +53,7 @@ $(document).ready(function() {
 var Game = function(appState) {
 	this.mouseX = null;
 	this.mouseY = null;
+	this.mouseZ = null; //use mouse wheel to control OR eye position Z
 	this.mouseTs = 0;
 
 	this.gameLoop;
@@ -228,7 +229,7 @@ GameCanvas.prototype.reset = function(gameState) {
 	this.updateDimension();
 	this.clearCanvas();
 
-	if(this.worm === undefined || this.gameState === DemoApp.STATE.GAME_TARGET)
+	if(this.worm === undefined || this.gameState === DemoApp.STATE.IDLE || this.gameState === DemoApp.STATE.GAME_TARGET)
 		this.createWorm();
 };
 
@@ -548,6 +549,7 @@ var Worm = Class([Observable], {
 
 		this.x = initX || -100;
 		this.y = initY || -100;
+		this.z = 0; 
 
 
 		//put starting object

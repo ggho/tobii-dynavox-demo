@@ -15,10 +15,8 @@ var DemoApp = Class([Observable],{
 	constructor: function(){
 		Observable.call(this); //call parent's constructor
 
-		// this._state = DemoApp.STATE.IDLE;
-		this._state = DemoApp.STATE.GAME_TARGET; //dev mode
-
-		$('#info-state').text('').text(this._state);
+		 this.state = DemoApp.STATE.IDLE;
+		//this.state = DemoApp.STATE.POSITIONING; //dev mode
 	},
 	// Getter/Setter 
 	state: {
@@ -37,16 +35,7 @@ var DemoApp = Class([Observable],{
 		}
 	},
 	nextState: function(){
-		if(this.state === DemoApp.STATE.IDLE)
-			this.state = DemoApp.STATE.ATTENTIVE;
-		else if(this.state === DemoApp.STATE.ATTENTIVE)
-			this.state = DemoApp.STATE.POSITIONING;
-		else if(this.state === DemoApp.STATE.POSITIONING)
-			this.state = DemoApp.STATE.GAME_EXPLORE;
-		else if(this.state === DemoApp.STATE.GAME_EXPLORE)
-			this.state = DemoApp.STATE.GAME_TARGET;
-		else if(this.state === DemoApp.STATE.GAME_TARGET)
-			this.state = DemoApp.STATE.IDLE;
+		this.state = (this.state)%6+1;
 	}
 });
 
@@ -63,6 +52,10 @@ var callWeb = function(event, data) {
 
 		$scope.game.setMouse(data.x, data.y);
 		
+	}else if(event == 'eyePosition'){
+		$scope.game.setMouse(data.x, data.y);
+		$scope.game.setMouseZ(data.z);
+
 	}else if(event == 'setState'){
 		console.log("setState: " + data.state);
 		demoApp.state = data.state;
